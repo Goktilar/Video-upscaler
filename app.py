@@ -19,7 +19,7 @@ LANGUAGES = {
         "success": "Video upscaled successfully!",
         "download_button": "Download Upscaled Video",
         "themes": {"Light": "Light", "Dark": "Dark"},
-        "interp_methods": ["Lanczos (High Quality)", "Bicubic", "Nearest Neighbor"],
+        "interp_methods": ["Lanczos (High Quality)", "Bicubic", "Nearest Neighbor", "AI (EDSR x2)"],
     },
     "Русский": {
         "title": "Видео Апскейлер",
@@ -33,7 +33,7 @@ LANGUAGES = {
         "success": "Видео успешно масштабировано!",
         "download_button": "Скачать масштабированное видео",
         "themes": {"Светлая": "Light", "Темная": "Dark"},
-        "interp_methods": ["Lanczos (Высокое качество)", "Бикубическая", "Ближайший сосед"],
+        "interp_methods": ["Lanczos (Высокое качество)", "Бикубическая", "Ближайший сосед", "ИИ (EDSR x2)"],
     }
 }
 
@@ -57,19 +57,50 @@ THEMES = {
     """
 }
 
+# Initialize Super Resolution model
+sr = None
+def get_sr_model():
+    global sr
+    if sr is None:
+        sr = cv2.dnn_superres.DnnSuperResImpl_create()
+        model_path = "models/EDSR_x2.pb"
+        if os.path.exists(model_path):
+            sr.readModel(model_path)
+            sr.setModel("edsr", 2)
+        else:
+            sr = None
+    return sr
+
 def upscale_frame(frame, factor, method_idx):
+    # MoviePy uses RGB, but OpenCV typically uses BGR or RGB depending on the function.
+    # dnn_superres and resize work fine with RGB if consistently used.
+    # However, for dnn_superres it's better to ensure correct color space if required by model.
+    # Most OpenCV models are trained on BGR.
+
+    # Convert RGB (MoviePy) to BGR for OpenCV
+    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+    if method_idx == 3:
+        model = get_sr_model()
+        if model:
+            upscaled_bgr = model.upsample(frame_bgr)
+            if factor != 2.0:
+                h, w = frame.shape[:2]
+                upscaled_bgr = cv2.resize(upscaled_bgr, (int(w * factor), int(h * factor)), interpolation=cv2.INTER_LANCZOS4)
+            return cv2.cvtColor(upscaled_bgr, cv2.COLOR_BGR2RGB)
+        else:
+            method_idx = 0
+
     methods = [cv2.INTER_LANCZOS4, cv2.INTER_CUBIC, cv2.INTER_NEAREST]
     height, width = frame.shape[:2]
     new_width = int(width * factor)
     new_height = int(height * factor)
-    return cv2.resize(frame, (new_width, new_height), interpolation=methods[method_idx])
+    upscaled_bgr = cv2.resize(frame_bgr, (new_width, new_height), interpolation=methods[method_idx])
+
+    return cv2.cvtColor(upscaled_bgr, cv2.COLOR_BGR2RGB)
 
 def process_video(input_path, output_path, upscale_factor, method_idx):
     clip = VideoFileClip(input_path)
-
-    # moviepy's resized() handles both frame resizing and metadata (size) update.
-    # However, it uses PIL for resizing by default. To use OpenCV Lanczos,
-    # we can use image_transform and then manually set the size.
 
     def process_frame(frame):
         return upscale_frame(frame, upscale_factor, method_idx)
@@ -77,9 +108,10 @@ def process_video(input_path, output_path, upscale_factor, method_idx):
     new_width = int(clip.w * upscale_factor)
     new_height = int(clip.h * upscale_factor)
 
-    # We use image_transform and then explicitly set the new size
+    # MoviePy 2.x uses image_transform but some versions/docs might favor fl_image.
+    # Looking at the directory from earlier: image_transform was present.
+    # I'll use image_transform and manually set size as verified before.
     new_clip = clip.image_transform(process_frame)
-    # Actually, image_transform is enough, but we MUST update size.
     new_clip.size = (new_width, new_height)
 
     new_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", fps=clip.fps, logger=None)
@@ -89,13 +121,11 @@ def process_video(input_path, output_path, upscale_factor, method_idx):
 def main():
     st.set_page_config(page_title="Video Upscaler", layout="centered")
 
-    # Session State for Language and Theme
     if 'lang' not in st.session_state:
         st.session_state.lang = "English"
     if 'theme_key' not in st.session_state:
         st.session_state.theme_key = "Light"
 
-    # Sidebar for settings
     with st.sidebar:
         st.session_state.lang = st.selectbox("Language / Язык", list(LANGUAGES.keys()),
                                              index=list(LANGUAGES.keys()).index(st.session_state.lang))
@@ -106,9 +136,7 @@ def main():
                                             index=0 if st.session_state.theme_key == "Light" else 1)
         st.session_state.theme_key = lang_data["themes"][selected_theme_label]
 
-    # Apply Theme
     st.markdown(THEMES[st.session_state.theme_key], unsafe_allow_html=True)
-
     st.title(lang_data["title"])
 
     uploaded_file = st.file_uploader(lang_data["upload_video"], type=["mp4", "avi", "mov"])
@@ -122,31 +150,38 @@ def main():
             method_idx = lang_data["interp_methods"].index(interpolation)
 
         if st.button(lang_data["start_button"]):
-            with st.spinner(lang_data["processing"]):
-                tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-                tfile.write(uploaded_file.read())
-                tfile.close()
+            if method_idx == 3 and not os.path.exists("models/EDSR_x2.pb"):
+                st.error("AI Model file (models/EDSR_x2.pb) not found. Please follow README instructions to download it.")
+            else:
+                with st.spinner(lang_data["processing"]):
+                    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                    tfile.write(uploaded_file.read())
+                    tfile.close()
 
-                output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+                    output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
 
-                try:
-                    process_video(tfile.name, output_path, upscale_factor, method_idx)
-
-                    st.success(lang_data["success"])
-                    with open(output_path, "rb") as f:
-                        st.download_button(
-                            label=lang_data["download_button"],
-                            data=f,
-                            file_name="upscaled_video.mp4",
-                            mime="video/mp4"
-                        )
-                except Exception as e:
-                    st.error(f"Error: {e}")
-                finally:
-                    if os.path.exists(tfile.name):
-                        os.remove(tfile.name)
-                    # Note: output_path is not deleted here to allow download.
-                    # In a real app, a cleanup mechanism (like a cron or background task) would be needed.
+                    try:
+                        process_video(tfile.name, output_path, upscale_factor, method_idx)
+                        st.success(lang_data["success"])
+                        with open(output_path, "rb") as f:
+                            st.download_button(
+                                label=lang_data["download_button"],
+                                data=f,
+                                file_name="upscaled_video.mp4",
+                                mime="video/mp4"
+                            )
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                    finally:
+                        if os.path.exists(tfile.name):
+                            os.remove(tfile.name)
+                        # We can't easily delete output_path here because download_button
+                        # triggers after this block finishes.
+                        # For now, let's keep it as is, or read into memory.
+                        # Reading into memory:
+                        # data = open(output_path, "rb").read()
+                        # os.remove(output_path)
+                        # download_button(data=data)
 
 if __name__ == "__main__":
     main()

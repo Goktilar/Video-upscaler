@@ -4,7 +4,7 @@
 
 ## Возможности
 - Апскейл видео в 1.5x, 2x, 3x, 4x.
-- Выбор методов интерполяции (Lanczos, Bicubic, Nearest Neighbor).
+- Выбор методов интерполяции (Lanczos, Bicubic, Nearest Neighbor, а также **AI Super Resolution**).
 - Поддержка русского и английского языков.
 - Светлая и темная темы оформления.
 - Сохранение аудио при обработке.
@@ -17,7 +17,15 @@
 pip install -r requirements.txt
 ```
 
-### 2. Запуск приложения
+### 2. Загрузка моделей ИИ
+Для использования функций ИИ необходимо скачать предобученные модели в папку `models/`.
+Например, для EDSR x2:
+```bash
+mkdir -p models
+curl -L https://github.com/Saafke/EDSR_Tensorflow/raw/master/models/EDSR_x2.pb -o models/EDSR_x2.pb
+```
+
+### 3. Запуск приложения
 ```bash
 streamlit run app.py
 ```
