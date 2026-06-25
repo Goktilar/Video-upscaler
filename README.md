@@ -32,6 +32,7 @@ streamlit run app.py
 
 ## Как "скомпилировать" (создать исполняемый файл)
 
+### Вариант 1: Python (Streamlit)
 Приложения на Streamlit обычно развертываются как веб-сервисы, но если вам нужен исполняемый файл (.exe), вы можете использовать **PyInstaller** или **StickyTape**, однако для Streamlit это может быть сложно.
 
 Более надежные способы:
@@ -45,3 +46,14 @@ pip install pyinstaller
 pyinstaller --onefile --additional-hooks-dir=. app.py
 ```
 *Примечание: для корректной работы Streamlit внутри PyInstaller требуются дополнительные настройки путей к ресурсам.*
+
+### Вариант 2: C# / Visual Studio (Windows)
+В репозитории создана папка `VideoUpscalerVS/`, содержащая проект .NET (WPF), который можно открыть и скомпилировать напрямую в Visual Studio.
+
+1. Откройте Visual Studio.
+2. Выберите "Open a project or solution" и укажите путь к `VideoUpscalerVS/VideoUpscalerVS.csproj`.
+3. Все зависимости (OpenCvSharp4) подгрузятся автоматически через NuGet.
+4. Нажмите **Build > Build Solution** или `F5` для запуска.
+5. Для публикации в один .exe: **Right Click Project > Publish... > Folder > Single File**.
+
+*Требуется установленная библиотека OpenCV или соответствующие NuGet-пакеты рантаймов (включены в проект).*
