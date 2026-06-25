@@ -129,17 +129,17 @@ namespace VideoUpscalerVS
 
             try
             {
-                // 1. Upscale video (no audio)
-                await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token));
+                // 1. Upscale video
+                await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token), cts.Token);
 
-                // 2. Mux audio from original
+                // 2. Mux audio
                 StatusLabel.Text = "Muxing audio...";
-                await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath));
+                await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath, cts.Token), cts.Token);
 
                 StatusLabel.Text = currentLang.Success;
                 System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is OperationCanceledException || ex.InnerException is OperationCanceledException)
             {
                 StatusLabel.Text = currentLang.Cancelled;
                 StatusLabel.Foreground = Brushes.Red;
@@ -210,7 +210,7 @@ namespace VideoUpscalerVS
 
             while (capture.Read(frame))
             {
-                token.ThrowIfCancellationRequested();
+                if (token.IsCancellationRequested) token.ThrowIfCancellationRequested();
                 if (frame.Empty()) break;
 
                 if (methodIdx == 3 && net != null)
@@ -249,10 +249,8 @@ namespace VideoUpscalerVS
             net?.Dispose();
         }
 
-        private void MuxAudio(string originalVideo, string upscaledVideo, string outputVideo)
+        private void MuxAudio(string originalVideo, string upscaledVideo, string outputVideo, CancellationToken token)
         {
-            // Use ffmpeg to copy audio from original to upscaled.
-            // Requirement: ffmpeg must be in PATH or in app directory.
             string args = $"-i \"{upscaledVideo}\" -i \"{originalVideo}\" -map 0:v -map 1:a? -c:v copy -c:a copy -shortest \"{outputVideo}\" -y";
 
             ProcessStartInfo psi = new ProcessStartInfo("ffmpeg", args)
@@ -264,10 +262,17 @@ namespace VideoUpscalerVS
 
             using (Process? p = Process.Start(psi))
             {
-                p?.WaitForExit();
-                if (p?.ExitCode != 0 && !File.Exists(outputVideo))
+                if (p == null) return;
+
+                using (token.Register(() => { try { p.Kill(); } catch { } }))
                 {
-                    // If muxing fails (e.g. no ffmpeg), just rename the upscaled video to final (without audio)
+                    p.WaitForExit();
+                }
+
+                if (token.IsCancellationRequested) token.ThrowIfCancellationRequested();
+
+                if (p.ExitCode != 0 && !File.Exists(outputVideo))
+                {
                     File.Copy(upscaledVideo, outputVideo, true);
                 }
             }
