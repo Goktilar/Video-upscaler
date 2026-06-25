@@ -1,0 +1,50 @@
+<Window x:Class="VideoUpscalerVS.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:VideoUpscalerVS"
+        mc:Ignorable="d"
+        Title="Video Upscaler" Height="450" Width="600">
+    <Grid Name="MainGrid">
+        <StackPanel Margin="20">
+            <TextBlock Name="TitleLabel" Text="Video Upscaler" FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
+
+            <DockPanel Margin="0,0,0,10">
+                <TextBlock Name="LangLabel" Text="Language:" VerticalAlignment="Center" Width="120"/>
+                <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged">
+                    <ComboBoxItem Content="English"/>
+                    <ComboBoxItem Content="Русский"/>
+                </ComboBox>
+            </DockPanel>
+
+            <DockPanel Margin="0,0,0,10">
+                <TextBlock Name="ThemeLabel" Text="Theme:" VerticalAlignment="Center" Width="120"/>
+                <ComboBox Name="ThemeCombo" SelectionChanged="ThemeCombo_SelectionChanged">
+                    <ComboBoxItem Content="Light"/>
+                    <ComboBoxItem Content="Dark"/>
+                </ComboBox>
+            </DockPanel>
+
+            <Button Name="SelectFileBtn" Content="Select Video File" Click="SelectFileBtn_Click" Margin="0,0,0,10"/>
+            <TextBlock Name="FilePathLabel" Text="No file selected" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
+
+            <DockPanel Margin="0,0,0,10">
+                <TextBlock Name="FactorLabel" Text="Upscale Factor (x2.0):" VerticalAlignment="Center" Width="150"/>
+                <Slider Name="FactorSlider" Minimum="1.5" Maximum="4.0" Value="2.0" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="FactorSlider_ValueChanged"/>
+            </DockPanel>
+
+            <DockPanel Margin="0,0,0,10">
+                <TextBlock Name="MethodLabel" Text="Interpolation:" VerticalAlignment="Center" Width="120"/>
+                <ComboBox Name="MethodCombo" SelectedIndex="0">
+                    <!-- Items added in code-behind -->
+                </ComboBox>
+            </DockPanel>
+
+            <Button Name="StartBtn" Content="Start Upscaling" Click="StartBtn_Click" Height="40" Background="LightBlue"/>
+
+            <ProgressBar Name="ProgBar" Height="20" Margin="0,10,0,0" Visibility="Collapsed" IsIndeterminate="True"/>
+            <TextBlock Name="StatusLabel" Text="" Margin="0,5,0,0" Foreground="Green"/>
+        </StackPanel>
+    </Grid>
+</Window>

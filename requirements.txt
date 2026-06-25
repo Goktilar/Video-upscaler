@@ -1,4 +1,0 @@
-streamlit
-opencv-contrib-python-headless
-moviepy
-numpy
