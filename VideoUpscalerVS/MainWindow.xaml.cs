@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -21,6 +22,7 @@ namespace VideoUpscalerVS
     {
         private string selectedPath = "";
         private Localization currentLang;
+        private CancellationTokenSource? cts;
 
         public MainWindow()
         {
@@ -45,6 +47,7 @@ namespace VideoUpscalerVS
             ThemeLabel.Text = currentLang.SelectTheme;
             SelectFileBtn.Content = currentLang.UploadVideo;
             StartBtn.Content = currentLang.StartButton;
+            CancelBtn.Content = currentLang.CancelButton;
             MethodLabel.Text = currentLang.Interpolation;
             DeviceLabel.Text = currentLang.Device;
 
@@ -109,10 +112,12 @@ namespace VideoUpscalerVS
             ProgressGrid.Visibility = Visibility.Visible;
             StartBtn.IsEnabled = false;
             StatusLabel.Text = currentLang.Processing;
+            StatusLabel.Foreground = Brushes.Green;
             ProgBar.Value = 0;
             PercLabel.Text = "0%";
             ETALabel.Text = "";
 
+            cts = new CancellationTokenSource();
             var progress = new Progress<ProgressInfo>(info =>
             {
                 ProgBar.Value = info.Percentage;
@@ -122,9 +127,18 @@ namespace VideoUpscalerVS
 
             try
             {
-                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx, progress));
+                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx, progress, cts.Token));
                 StatusLabel.Text = currentLang.Success;
                 System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + outputPath);
+            }
+            catch (OperationCanceledException)
+            {
+                StatusLabel.Text = currentLang.Cancelled;
+                StatusLabel.Foreground = Brushes.Red;
+                if (File.Exists(outputPath))
+                {
+                    try { File.Delete(outputPath); } catch { }
+                }
             }
             catch (Exception ex)
             {
@@ -134,10 +148,17 @@ namespace VideoUpscalerVS
             {
                 ProgressGrid.Visibility = Visibility.Collapsed;
                 StartBtn.IsEnabled = true;
+                cts?.Dispose();
+                cts = null;
             }
         }
 
-        private void UpscaleLogic(string input, string output, double factor, int methodIdx, int deviceIdx, IProgress<ProgressInfo> progress)
+        private void CancelBtn_Click(object sender, RoutedEventArgs e)
+        {
+            cts?.Cancel();
+        }
+
+        private void UpscaleLogic(string input, string output, double factor, int methodIdx, int deviceIdx, IProgress<ProgressInfo> progress, CancellationToken token)
         {
             using var capture = new VideoCapture(input);
             int width = capture.FrameWidth;
@@ -171,21 +192,28 @@ namespace VideoUpscalerVS
 
             while (capture.Read(frame))
             {
+                token.ThrowIfCancellationRequested();
+
                 if (frame.Empty()) break;
 
                 if (methodIdx == 3 && net != null)
                 {
-                    using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), true, false);
+                    // AI Upscale (EDSR x2) - Input frame is BGR
+                    using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), false, false);
                     net.SetInput(blob);
                     using var resultBlob = net.Forward();
                     int outH = resultBlob.Size(2);
                     int outW = resultBlob.Size(3);
-                    using var planeR = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
-                    using var planeG = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
-                    using var planeB = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
+
+                    // Reconstruct from NCHW blob back to HWC Mat (BGR)
+                    using var plane0 = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
+                    using var plane1 = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
+                    using var plane2 = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
+
                     using var merged = new Mat();
-                    Cv2.Merge(new[] { planeR, planeG, planeB }, merged);
+                    Cv2.Merge(new[] { plane0, plane1, plane2 }, merged);
                     merged.ConvertTo(upscaled, MatType.CV_8UC3);
+
                     if (factor != 2.0) Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
                 }
                 else
@@ -196,16 +224,13 @@ namespace VideoUpscalerVS
                 writer.Write(upscaled);
 
                 currentFrame++;
-                if (totalFrames > 0 && currentFrame % 5 == 0) // Update every 5 frames for performance
+                if (totalFrames > 0 && currentFrame % 5 == 0)
                 {
                     double perc = (double)currentFrame / totalFrames * 100.0;
-                    double elapsedMs = sw.ElapsedMilliseconds;
-                    double msPerFrame = elapsedMs / currentFrame;
+                    double msPerFrame = sw.ElapsedMilliseconds / (double)currentFrame;
                     double remainingMs = msPerFrame * (totalFrames - currentFrame);
                     TimeSpan t = TimeSpan.FromMilliseconds(remainingMs);
-
                     string eta = t.TotalHours >= 1 ? $"{(int)t.TotalHours:D2}:{t.Minutes:D2}:{t.Seconds:D2}" : $"{t.Minutes:D2}:{t.Seconds:D2}";
-
                     progress.Report(new ProgressInfo { Percentage = perc, RemainingTime = eta });
                 }
             }
@@ -214,13 +239,13 @@ namespace VideoUpscalerVS
 
         private Dictionary<string, Localization> Languages = new Dictionary<string, Localization>
         {
-            ["English"] = new Localization { Title = "Video Upscaler", SelectLang = "Language:", SelectTheme = "Theme:", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", Device = "Device (Optimization):", StartButton = "Start Upscaling", Processing = "Processing...", Success = "Done!", RemainingTime = "Remaining time", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" }, Devices = new List<string> { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } },
-            ["Русский"] = new Localization { Title = "Видео Апскейлер", SelectLang = "Язык:", SelectTheme = "Тема:", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", Device = "Устройство:", StartButton = "Начать", Processing = "Обработка...", Success = "Готово!", RemainingTime = "Осталось времени", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" }, Devices = new List<string> { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } }
+            ["English"] = new Localization { Title = "Video Upscaler", SelectLang = "Language:", SelectTheme = "Theme:", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", Device = "Device (Optimization):", StartButton = "Start Upscaling", CancelButton = "Cancel", Processing = "Processing...", Success = "Done!", Cancelled = "Cancelled", RemainingTime = "Remaining time", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" }, Devices = new List<string> { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } },
+            ["Русский"] = new Localization { Title = "Видео Апскейлер", SelectLang = "Язык:", SelectTheme = "Тема:", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", Device = "Устройство:", StartButton = "Начать", CancelButton = "Отмена", Processing = "Обработка...", Success = "Готово!", Cancelled = "Отменено", RemainingTime = "Осталось времени", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" }, Devices = new List<string> { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } }
         };
     }
 
     public class Localization
     {
-        public string Title { get; set; } public string SelectLang { get; set; } public string SelectTheme { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string Device { get; set; } public string StartButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public string RemainingTime { get; set; } public List<string> InterpMethods { get; set; } public List<string> Devices { get; set; }
+        public string Title { get; set; } public string SelectLang { get; set; } public string SelectTheme { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string Device { get; set; } public string StartButton { get; set; } public string CancelButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public string Cancelled { get; set; } public string RemainingTime { get; set; } public List<string> InterpMethods { get; set; } public List<string> Devices { get; set; }
     }
 }

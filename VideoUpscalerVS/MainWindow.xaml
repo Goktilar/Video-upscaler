@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VideoUpscalerVS"
         mc:Ignorable="d"
-        Title="Video Upscaler" Height="520" Width="600">
+        Title="Video Upscaler" Height="550" Width="600">
     <Grid Name="MainGrid">
         <StackPanel Margin="20">
             <TextBlock Name="TitleLabel" Text="Video Upscaler" FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
@@ -54,7 +54,10 @@
                         <ProgressBar Name="ProgBar" Height="25" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
                         <TextBlock Name="PercLabel" Text="0%" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
                     </Grid>
-                    <TextBlock Name="ETALabel" Text="Time remaining: ..." Margin="0,5,0,0" HorizontalAlignment="Right" FontSize="11"/>
+                    <DockPanel Margin="0,5,0,0">
+                        <Button Name="CancelBtn" Content="Cancel" Click="CancelBtn_Click" Width="80" HorizontalAlignment="Left" Background="#FFE0E0"/>
+                        <TextBlock Name="ETALabel" Text="Time remaining: ..." HorizontalAlignment="Right" FontSize="11" VerticalAlignment="Center"/>
+                    </DockPanel>
                 </StackPanel>
             </Grid>
 
