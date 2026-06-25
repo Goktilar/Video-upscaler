@@ -102,15 +102,17 @@ namespace VideoUpscalerVS
         {
             if (string.IsNullOrEmpty(selectedPath)) return;
 
-            string outputPath = Path.Combine(Path.GetDirectoryName(selectedPath),
+            string tempOutputPath = Path.Combine(Path.GetDirectoryName(selectedPath),
+                Path.GetFileNameWithoutExtension(selectedPath) + "_temp_no_audio.mp4");
+            string finalOutputPath = Path.Combine(Path.GetDirectoryName(selectedPath),
                 Path.GetFileNameWithoutExtension(selectedPath) + "_upscaled.mp4");
 
             double factor = FactorSlider.Value;
             int methodIdx = MethodCombo.SelectedIndex;
             int deviceIdx = DeviceCombo.SelectedIndex;
 
+            SetUIEnabled(false);
             ProgressGrid.Visibility = Visibility.Visible;
-            StartBtn.IsEnabled = false;
             StatusLabel.Text = currentLang.Processing;
             StatusLabel.Foreground = Brushes.Green;
             ProgBar.Value = 0;
@@ -127,18 +129,20 @@ namespace VideoUpscalerVS
 
             try
             {
-                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx, progress, cts.Token));
+                // 1. Upscale video (no audio)
+                await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token));
+
+                // 2. Mux audio from original
+                StatusLabel.Text = "Muxing audio...";
+                await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath));
+
                 StatusLabel.Text = currentLang.Success;
-                System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + outputPath);
+                System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
             }
             catch (OperationCanceledException)
             {
                 StatusLabel.Text = currentLang.Cancelled;
                 StatusLabel.Foreground = Brushes.Red;
-                if (File.Exists(outputPath))
-                {
-                    try { File.Delete(outputPath); } catch { }
-                }
             }
             catch (Exception ex)
             {
@@ -146,11 +150,25 @@ namespace VideoUpscalerVS
             }
             finally
             {
+                if (File.Exists(tempOutputPath)) try { File.Delete(tempOutputPath); } catch { }
+                if (cts?.IsCancellationRequested == true && File.Exists(finalOutputPath)) try { File.Delete(finalOutputPath); } catch { }
+
                 ProgressGrid.Visibility = Visibility.Collapsed;
-                StartBtn.IsEnabled = true;
+                SetUIEnabled(true);
                 cts?.Dispose();
                 cts = null;
             }
+        }
+
+        private void SetUIEnabled(bool enabled)
+        {
+            StartBtn.IsEnabled = enabled;
+            SelectFileBtn.IsEnabled = enabled;
+            LangCombo.IsEnabled = enabled;
+            ThemeCombo.IsEnabled = enabled;
+            FactorSlider.IsEnabled = enabled;
+            MethodCombo.IsEnabled = enabled;
+            DeviceCombo.IsEnabled = enabled;
         }
 
         private void CancelBtn_Click(object sender, RoutedEventArgs e)
@@ -193,27 +211,21 @@ namespace VideoUpscalerVS
             while (capture.Read(frame))
             {
                 token.ThrowIfCancellationRequested();
-
                 if (frame.Empty()) break;
 
                 if (methodIdx == 3 && net != null)
                 {
-                    // AI Upscale (EDSR x2) - Input frame is BGR
                     using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), false, false);
                     net.SetInput(blob);
                     using var resultBlob = net.Forward();
                     int outH = resultBlob.Size(2);
                     int outW = resultBlob.Size(3);
-
-                    // Reconstruct from NCHW blob back to HWC Mat (BGR)
                     using var plane0 = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
                     using var plane1 = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
                     using var plane2 = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
-
                     using var merged = new Mat();
                     Cv2.Merge(new[] { plane0, plane1, plane2 }, merged);
                     merged.ConvertTo(upscaled, MatType.CV_8UC3);
-
                     if (factor != 2.0) Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
                 }
                 else
@@ -235,6 +247,30 @@ namespace VideoUpscalerVS
                 }
             }
             net?.Dispose();
+        }
+
+        private void MuxAudio(string originalVideo, string upscaledVideo, string outputVideo)
+        {
+            // Use ffmpeg to copy audio from original to upscaled.
+            // Requirement: ffmpeg must be in PATH or in app directory.
+            string args = $"-i \"{upscaledVideo}\" -i \"{originalVideo}\" -map 0:v -map 1:a? -c:v copy -c:a copy -shortest \"{outputVideo}\" -y";
+
+            ProcessStartInfo psi = new ProcessStartInfo("ffmpeg", args)
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            using (Process? p = Process.Start(psi))
+            {
+                p?.WaitForExit();
+                if (p?.ExitCode != 0 && !File.Exists(outputVideo))
+                {
+                    // If muxing fails (e.g. no ffmpeg), just rename the upscaled video to final (without audio)
+                    File.Copy(upscaledVideo, outputVideo, true);
+                }
+            }
         }
 
         private Dictionary<string, Localization> Languages = new Dictionary<string, Localization>
