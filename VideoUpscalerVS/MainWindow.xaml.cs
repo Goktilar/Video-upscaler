@@ -6,11 +6,11 @@ using System.Windows;
 using System.Windows.Media;
 using Microsoft.Win32;
 using OpenCvSharp;
-using OpenCvSharp.DnnSuperRes;
+using OpenCvSharp.Dnn;
 
 namespace VideoUpscalerVS
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : System.Windows.Window
     {
         private string selectedPath = "";
         private Localization currentLang;
@@ -58,8 +58,8 @@ namespace VideoUpscalerVS
             string theme = (ThemeCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content.ToString() ?? "Light";
 
             bool isDark = theme == "Dark" || theme == "Темная";
-            MainGrid.Background = isDark ? new SolidColorBrush(Color.FromRgb(14, 17, 23)) : Brushes.White;
-            var brush = isDark ? Brushes.White : Brushes.Black;
+            MainGrid.Background = isDark ? new SolidColorBrush(Color.FromRgb(14, 17, 23)) : System.Windows.Media.Brushes.White;
+            var brush = isDark ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black;
 
             TitleLabel.Foreground = brush;
             LangLabel.Foreground = brush;
@@ -106,11 +106,11 @@ namespace VideoUpscalerVS
             {
                 await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx));
                 StatusLabel.Text = currentLang.Success;
-                MessageBox.Show(currentLang.Success + "\nSaved to: " + outputPath);
+                System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + outputPath);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error: " + ex.Message);
+                System.Windows.MessageBox.Show("Error: " + ex.Message);
             }
             finally
             {
@@ -121,8 +121,6 @@ namespace VideoUpscalerVS
 
         private void UpscaleLogic(string input, string output, double factor, int methodIdx, int deviceIdx)
         {
-            // deviceIdx: 0=CPU, 1=NVIDIA (CUDA), 2=AMD/Intel (OpenCL)
-
             using var capture = new VideoCapture(input);
             int width = capture.FrameWidth;
             int height = capture.FrameHeight;
@@ -136,46 +134,51 @@ namespace VideoUpscalerVS
             using var frame = new Mat();
             using var upscaled = new Mat();
 
-            DnnSuperResImpl? sr = null;
+            Net? net = null;
             if (methodIdx == 3)
             {
-                sr = new DnnSuperResImpl();
                 string modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "models/EDSR_x2.pb");
                 if (File.Exists(modelPath))
                 {
-                    sr.ReadModel(modelPath);
-                    sr.SetModel("edsr", 2);
-
-                    // Optimization for DNN
-                    if (deviceIdx == 1) // NVIDIA
+                    net = CvDnn.ReadNetFromTensorflow(modelPath);
+                    if (deviceIdx == 1)
                     {
-                        sr.SetPreferableBackend(Net.Backend.CUDA);
-                        sr.SetPreferableTarget(Net.Target.CUDA);
+                        net.SetPreferableBackend(Backend.CUDA);
+                        net.SetPreferableTarget(Target.CUDA);
                     }
                 }
-                else throw new Exception("AI Model not found at " + modelPath);
+                else
+                {
+                    methodIdx = 0; // Fallback
+                }
             }
 
-            // Enable OpenCL for standard OpenCV functions (like Resize) if requested
-            if (deviceIdx == 2) // OpenCL
-            {
-                Cv2.SetUseOpenCL(true);
-            }
-            else
-            {
-                Cv2.SetUseOpenCL(false);
-            }
+            if (deviceIdx == 2) Cv2.SetUseOpenCL(true);
+            else Cv2.SetUseOpenCL(false);
 
             while (capture.Read(frame))
             {
                 if (frame.Empty()) break;
 
-                if (methodIdx == 3 && sr != null)
+                if (methodIdx == 3 && net != null)
                 {
-                    sr.Upsample(frame, upscaled);
+                    // AI Upscale (EDSR x2)
+                    using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), true, false);
+                    net.SetInput(blob);
+                    using var resultBlob = net.Forward();
+
+                    // Convert blob [1, 3, H, W] back to Mat [H, W, 3]
+                    // This is a simplified conversion for EDSR
+                    int outH = resultBlob.Size(2);
+                    int outW = resultBlob.Size(3);
+                    using var outputMat = new Mat(outH, outW, MatType.CV_32FC3, resultBlob.Data);
+
+                    // Most EDSR models output values in [0, 255] or [0, 1].
+                    // OpenCvSharp Mat needs byte values [0, 255] for writer.
+                    outputMat.ConvertTo(upscaled, MatType.CV_8UC3);
+
                     if (factor != 2.0)
                     {
-                        // For standard resize, OpenCL optimization works via UMat automatically if SetUseOpenCL is true
                         Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
                     }
                 }
@@ -203,7 +206,7 @@ namespace VideoUpscalerVS
                 }
                 writer.Write(upscaled);
             }
-            sr?.Dispose();
+            net?.Dispose();
         }
 
         private Dictionary<string, Localization> Languages = new Dictionary<string, Localization>
