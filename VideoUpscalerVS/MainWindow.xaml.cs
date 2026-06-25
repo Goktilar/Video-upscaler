@@ -157,16 +157,12 @@ namespace VideoUpscalerVS
                 }
             }
 
-            // OpenCL properties are often missing in certain OpenCvSharp builds.
-            // We'll skip them and rely on default behavior.
-
             while (capture.Read(frame))
             {
                 if (frame.Empty()) break;
 
                 if (methodIdx == 3 && net != null)
                 {
-                    // AI Upscale (EDSR x2)
                     using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), true, false);
                     net.SetInput(blob);
                     using var resultBlob = net.Forward();
@@ -175,10 +171,10 @@ namespace VideoUpscalerVS
                     int outH = resultBlob.Size(2);
                     int outW = resultBlob.Size(3);
 
-                    // Reconstruct from NCHW blob to HWC Mat
-                    using var planeR = new Mat(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
-                    using var planeG = new Mat(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
-                    using var planeB = new Mat(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
+                    // Replace deprecated Mat constructor with Mat.FromPixelData
+                    using var planeR = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
+                    using var planeG = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
+                    using var planeB = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
 
                     using var merged = new Mat();
                     Cv2.Merge(new[] { planeR, planeG, planeB }, merged);
