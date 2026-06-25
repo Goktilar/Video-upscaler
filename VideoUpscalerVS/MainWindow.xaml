@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VideoUpscalerVS"
         mc:Ignorable="d"
-        Title="Video Upscaler" Height="450" Width="600">
+        Title="Video Upscaler" Height="500" Width="600">
     <Grid Name="MainGrid">
         <StackPanel Margin="20">
             <TextBlock Name="TitleLabel" Text="Video Upscaler" FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
@@ -37,7 +37,12 @@
             <DockPanel Margin="0,0,0,10">
                 <TextBlock Name="MethodLabel" Text="Interpolation:" VerticalAlignment="Center" Width="120"/>
                 <ComboBox Name="MethodCombo" SelectedIndex="0">
-                    <!-- Items added in code-behind -->
+                </ComboBox>
+            </DockPanel>
+
+            <DockPanel Margin="0,0,0,10">
+                <TextBlock Name="DeviceLabel" Text="Device (Optimization):" VerticalAlignment="Center" Width="150"/>
+                <ComboBox Name="DeviceCombo" SelectedIndex="0">
                 </ComboBox>
             </DockPanel>
 

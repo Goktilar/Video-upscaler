@@ -39,11 +39,17 @@ namespace VideoUpscalerVS
             SelectFileBtn.Content = currentLang.UploadVideo;
             StartBtn.Content = currentLang.StartButton;
             MethodLabel.Text = currentLang.Interpolation;
+            DeviceLabel.Text = currentLang.Device;
 
-            int prevIndex = MethodCombo?.SelectedIndex ?? 0;
+            int prevMethodIndex = MethodCombo?.SelectedIndex ?? 0;
             MethodCombo.Items.Clear();
             foreach (var m in currentLang.InterpMethods) MethodCombo.Items.Add(m);
-            MethodCombo.SelectedIndex = prevIndex >= 0 ? prevIndex : 0;
+            MethodCombo.SelectedIndex = prevMethodIndex >= 0 ? prevMethodIndex : 0;
+
+            int prevDeviceIndex = DeviceCombo?.SelectedIndex ?? 0;
+            DeviceCombo.Items.Clear();
+            foreach (var d in currentLang.Devices) DeviceCombo.Items.Add(d);
+            DeviceCombo.SelectedIndex = prevDeviceIndex >= 0 ? prevDeviceIndex : 0;
         }
 
         private void ThemeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -51,26 +57,17 @@ namespace VideoUpscalerVS
             if (ThemeCombo == null) return;
             string theme = (ThemeCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content.ToString() ?? "Light";
 
-            if (theme == "Dark" || theme == "Темная")
-            {
-                MainGrid.Background = new SolidColorBrush(Color.FromRgb(14, 17, 23));
-                TitleLabel.Foreground = Brushes.White;
-                LangLabel.Foreground = Brushes.White;
-                ThemeLabel.Foreground = Brushes.White;
-                FilePathLabel.Foreground = Brushes.White;
-                FactorLabel.Foreground = Brushes.White;
-                MethodLabel.Foreground = Brushes.White;
-            }
-            else
-            {
-                MainGrid.Background = Brushes.White;
-                TitleLabel.Foreground = Brushes.Black;
-                LangLabel.Foreground = Brushes.Black;
-                ThemeLabel.Foreground = Brushes.Black;
-                FilePathLabel.Foreground = Brushes.Black;
-                FactorLabel.Foreground = Brushes.Black;
-                MethodLabel.Foreground = Brushes.Black;
-            }
+            bool isDark = theme == "Dark" || theme == "Темная";
+            MainGrid.Background = isDark ? new SolidColorBrush(Color.FromRgb(14, 17, 23)) : Brushes.White;
+            var brush = isDark ? Brushes.White : Brushes.Black;
+
+            TitleLabel.Foreground = brush;
+            LangLabel.Foreground = brush;
+            ThemeLabel.Foreground = brush;
+            FilePathLabel.Foreground = brush;
+            FactorLabel.Foreground = brush;
+            MethodLabel.Foreground = brush;
+            DeviceLabel.Foreground = brush;
         }
 
         private void SelectFileBtn_Click(object sender, RoutedEventArgs e)
@@ -87,7 +84,7 @@ namespace VideoUpscalerVS
         private void FactorSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (FactorLabel != null)
-                FactorLabel.Text = $"{currentLang?.UpscaleFactor ?? "Factor"} (x{e.NewValue:F1}):";
+                FactorLabel.Text = $"{(currentLang != null ? currentLang.UpscaleFactor : "Factor")} (x{e.NewValue:F1}):";
         }
 
         private async void StartBtn_Click(object sender, RoutedEventArgs e)
@@ -99,6 +96,7 @@ namespace VideoUpscalerVS
 
             double factor = FactorSlider.Value;
             int methodIdx = MethodCombo.SelectedIndex;
+            int deviceIdx = DeviceCombo.SelectedIndex;
 
             ProgBar.Visibility = Visibility.Visible;
             StartBtn.IsEnabled = false;
@@ -106,7 +104,7 @@ namespace VideoUpscalerVS
 
             try
             {
-                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx));
+                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx));
                 StatusLabel.Text = currentLang.Success;
                 MessageBox.Show(currentLang.Success + "\nSaved to: " + outputPath);
             }
@@ -121,8 +119,10 @@ namespace VideoUpscalerVS
             }
         }
 
-        private void UpscaleLogic(string input, string output, double factor, int methodIdx)
+        private void UpscaleLogic(string input, string output, double factor, int methodIdx, int deviceIdx)
         {
+            // deviceIdx: 0=CPU, 1=NVIDIA (CUDA), 2=AMD/Intel (OpenCL)
+
             using var capture = new VideoCapture(input);
             int width = capture.FrameWidth;
             int height = capture.FrameHeight;
@@ -145,22 +145,61 @@ namespace VideoUpscalerVS
                 {
                     sr.ReadModel(modelPath);
                     sr.SetModel("edsr", 2);
+
+                    // Optimization for DNN
+                    if (deviceIdx == 1) // NVIDIA
+                    {
+                        sr.SetPreferableBackend(Net.Backend.CUDA);
+                        sr.SetPreferableTarget(Net.Target.CUDA);
+                    }
                 }
                 else throw new Exception("AI Model not found at " + modelPath);
+            }
+
+            // Enable OpenCL for standard OpenCV functions (like Resize) if requested
+            if (deviceIdx == 2) // OpenCL
+            {
+                Cv2.SetUseOpenCL(true);
+            }
+            else
+            {
+                Cv2.SetUseOpenCL(false);
             }
 
             while (capture.Read(frame))
             {
                 if (frame.Empty()) break;
+
                 if (methodIdx == 3 && sr != null)
                 {
                     sr.Upsample(frame, upscaled);
-                    if (factor != 2.0) Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
+                    if (factor != 2.0)
+                    {
+                        // For standard resize, OpenCL optimization works via UMat automatically if SetUseOpenCL is true
+                        Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
+                    }
                 }
                 else
                 {
-                    InterpolationFlags flag = methodIdx switch { 0 => InterpolationFlags.Lanczos4, 1 => InterpolationFlags.Cubic, 2 => InterpolationFlags.Nearest, _ => InterpolationFlags.Lanczos4 };
-                    Cv2.Resize(frame, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
+                    InterpolationFlags flag = methodIdx switch
+                    {
+                        0 => InterpolationFlags.Lanczos4,
+                        1 => InterpolationFlags.Cubic,
+                        2 => InterpolationFlags.Nearest,
+                        _ => InterpolationFlags.Lanczos4
+                    };
+
+                    if (deviceIdx == 2) // OpenCL
+                    {
+                        using var uFrame = frame.ToUMat(AccessFlag.Read);
+                        using var uUpscaled = new UMat();
+                        Cv2.Resize(uFrame, uUpscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
+                        uUpscaled.CopyTo(upscaled);
+                    }
+                    else
+                    {
+                        Cv2.Resize(frame, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
+                    }
                 }
                 writer.Write(upscaled);
             }
@@ -169,10 +208,24 @@ namespace VideoUpscalerVS
 
         private Dictionary<string, Localization> Languages = new Dictionary<string, Localization>
         {
-            ["English"] = new Localization { Title = "Video Upscaler", SelectLang = "Language:", SelectTheme = "Theme:", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", StartButton = "Start Upscaling", Processing = "Processing...", Success = "Done!", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" } },
-            ["Русский"] = new Localization { Title = "Видео Апскейлер", SelectLang = "Язык:", SelectTheme = "Тема:", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", StartButton = "Начать", Processing = "Обработка...", Success = "Готово!", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" } }
+            ["English"] = new Localization { Title = "Video Upscaler", SelectLang = "Language:", SelectTheme = "Theme:", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", Device = "Device (Optimization):", StartButton = "Start Upscaling", Processing = "Processing...", Success = "Done!", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" }, Devices = new List<string> { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } },
+            ["Русский"] = new Localization { Title = "Видео Апскейлер", SelectLang = "Язык:", SelectTheme = "Тема:", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", Device = "Устройство:", StartButton = "Начать", Processing = "Обработка...", Success = "Готово!", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" }, Devices = new List<string> { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } }
         };
     }
 
-    public class Localization { public string Title { get; set; } public string SelectLang { get; set; } public string SelectTheme { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string StartButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public List<string> InterpMethods { get; set; } }
+    public class Localization
+    {
+        public string Title { get; set; }
+        public string SelectLang { get; set; }
+        public string SelectTheme { get; set; }
+        public string UploadVideo { get; set; }
+        public string UpscaleFactor { get; set; }
+        public string Interpolation { get; set; }
+        public string Device { get; set; }
+        public string StartButton { get; set; }
+        public string Processing { get; set; }
+        public string Success { get; set; }
+        public List<string> InterpMethods { get; set; }
+        public List<string> Devices { get; set; }
+    }
 }
