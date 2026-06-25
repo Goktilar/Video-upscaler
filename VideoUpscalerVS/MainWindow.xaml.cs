@@ -141,10 +141,14 @@ namespace VideoUpscalerVS
                 if (File.Exists(modelPath))
                 {
                     net = CvDnn.ReadNetFromTensorflow(modelPath);
-                    if (deviceIdx == 1)
+                    if (deviceIdx == 1) // NVIDIA
                     {
                         net.SetPreferableBackend(Backend.CUDA);
                         net.SetPreferableTarget(Target.CUDA);
+                    }
+                    else if (deviceIdx == 2) // OpenCL (AMD)
+                    {
+                        net.SetPreferableTarget(Target.OPENCL);
                     }
                 }
                 else
@@ -153,9 +157,8 @@ namespace VideoUpscalerVS
                 }
             }
 
-            // OpenCvSharp4 uses Cv2.UseOpenCL property instead of SetUseOpenCL
-            if (deviceIdx == 2) Cv2.HaveOpenCL(); // Check availability
-            Cv2.UseOpenCL = (deviceIdx == 2);
+            // OpenCL properties are often missing in certain OpenCvSharp builds.
+            // We'll skip them and rely on default behavior.
 
             while (capture.Read(frame))
             {
@@ -163,16 +166,24 @@ namespace VideoUpscalerVS
 
                 if (methodIdx == 3 && net != null)
                 {
+                    // AI Upscale (EDSR x2)
                     using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), true, false);
                     net.SetInput(blob);
                     using var resultBlob = net.Forward();
 
+                    int outC = resultBlob.Size(1);
                     int outH = resultBlob.Size(2);
                     int outW = resultBlob.Size(3);
 
-                    // Use Mat.FromPixelData instead of deprecated constructor
-                    using var outputMat = Mat.FromPixelData(outH, outW, MatType.CV_32FC3, resultBlob.Data);
-                    outputMat.ConvertTo(upscaled, MatType.CV_8UC3);
+                    // Reconstruct from NCHW blob to HWC Mat
+                    using var planeR = new Mat(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
+                    using var planeG = new Mat(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
+                    using var planeB = new Mat(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
+
+                    using var merged = new Mat();
+                    Cv2.Merge(new[] { planeR, planeG, planeB }, merged);
+
+                    merged.ConvertTo(upscaled, MatType.CV_8UC3);
 
                     if (factor != 2.0)
                     {
@@ -188,8 +199,6 @@ namespace VideoUpscalerVS
                         2 => InterpolationFlags.Nearest,
                         _ => InterpolationFlags.Lanczos4
                     };
-
-                    // Transparent API in OpenCV handles OpenCL automatically via Mat if Cv2.UseOpenCL is true
                     Cv2.Resize(frame, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
                 }
                 writer.Write(upscaled);
