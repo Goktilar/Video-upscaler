@@ -98,13 +98,21 @@ namespace VideoUpscalerVS
             int methodIdx = MethodCombo.SelectedIndex;
             int deviceIdx = DeviceCombo.SelectedIndex;
 
-            ProgBar.Visibility = Visibility.Visible;
+            ProgressGrid.Visibility = Visibility.Visible;
             StartBtn.IsEnabled = false;
             StatusLabel.Text = currentLang.Processing;
+            ProgBar.Value = 0;
+            PercLabel.Text = "0%";
+
+            var progress = new Progress<double>(p =>
+            {
+                ProgBar.Value = p;
+                PercLabel.Text = $"{(int)p}%";
+            });
 
             try
             {
-                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx));
+                await Task.Run(() => UpscaleLogic(selectedPath, outputPath, factor, methodIdx, deviceIdx, progress));
                 StatusLabel.Text = currentLang.Success;
                 System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + outputPath);
             }
@@ -114,17 +122,18 @@ namespace VideoUpscalerVS
             }
             finally
             {
-                ProgBar.Visibility = Visibility.Collapsed;
+                ProgressGrid.Visibility = Visibility.Collapsed;
                 StartBtn.IsEnabled = true;
             }
         }
 
-        private void UpscaleLogic(string input, string output, double factor, int methodIdx, int deviceIdx)
+        private void UpscaleLogic(string input, string output, double factor, int methodIdx, int deviceIdx, IProgress<double> progress)
         {
             using var capture = new VideoCapture(input);
             int width = capture.FrameWidth;
             int height = capture.FrameHeight;
             double fps = capture.Fps;
+            int totalFrames = capture.FrameCount;
             int fourcc = VideoWriter.FourCC('m', 'p', '4', 'v');
 
             int newWidth = (int)(width * factor);
@@ -141,12 +150,12 @@ namespace VideoUpscalerVS
                 if (File.Exists(modelPath))
                 {
                     net = CvDnn.ReadNetFromTensorflow(modelPath);
-                    if (deviceIdx == 1) // NVIDIA
+                    if (deviceIdx == 1)
                     {
                         net.SetPreferableBackend(Backend.CUDA);
                         net.SetPreferableTarget(Target.CUDA);
                     }
-                    else if (deviceIdx == 2) // OpenCL (AMD)
+                    else if (deviceIdx == 2)
                     {
                         net.SetPreferableTarget(Target.OPENCL);
                     }
@@ -157,6 +166,7 @@ namespace VideoUpscalerVS
                 }
             }
 
+            int currentFrame = 0;
             while (capture.Read(frame))
             {
                 if (frame.Empty()) break;
@@ -167,37 +177,36 @@ namespace VideoUpscalerVS
                     net.SetInput(blob);
                     using var resultBlob = net.Forward();
 
-                    int outC = resultBlob.Size(1);
                     int outH = resultBlob.Size(2);
                     int outW = resultBlob.Size(3);
 
-                    // Replace deprecated Mat constructor with Mat.FromPixelData
                     using var planeR = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 0));
                     using var planeG = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 1));
                     using var planeB = Mat.FromPixelData(outH, outW, MatType.CV_32FC1, resultBlob.Ptr(0, 2));
 
                     using var merged = new Mat();
                     Cv2.Merge(new[] { planeR, planeG, planeB }, merged);
-
                     merged.ConvertTo(upscaled, MatType.CV_8UC3);
 
                     if (factor != 2.0)
-                    {
                         Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
-                    }
                 }
                 else
                 {
                     InterpolationFlags flag = methodIdx switch
                     {
-                        0 => InterpolationFlags.Lanczos4,
-                        1 => InterpolationFlags.Cubic,
-                        2 => InterpolationFlags.Nearest,
-                        _ => InterpolationFlags.Lanczos4
+                        0 => InterpolationFlags.Lanczos4, 1 => InterpolationFlags.Cubic, 2 => InterpolationFlags.Nearest, _ => InterpolationFlags.Lanczos4
                     };
                     Cv2.Resize(frame, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
                 }
                 writer.Write(upscaled);
+
+                currentFrame++;
+                if (totalFrames > 0)
+                {
+                    double perc = (double)currentFrame / totalFrames * 100.0;
+                    progress.Report(perc);
+                }
             }
             net?.Dispose();
         }
