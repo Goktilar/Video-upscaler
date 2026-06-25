@@ -153,8 +153,9 @@ namespace VideoUpscalerVS
                 }
             }
 
-            if (deviceIdx == 2) Cv2.SetUseOpenCL(true);
-            else Cv2.SetUseOpenCL(false);
+            // OpenCvSharp4 uses Cv2.UseOpenCL property instead of SetUseOpenCL
+            if (deviceIdx == 2) Cv2.HaveOpenCL(); // Check availability
+            Cv2.UseOpenCL = (deviceIdx == 2);
 
             while (capture.Read(frame))
             {
@@ -162,19 +163,15 @@ namespace VideoUpscalerVS
 
                 if (methodIdx == 3 && net != null)
                 {
-                    // AI Upscale (EDSR x2)
                     using var blob = CvDnn.BlobFromImage(frame, 1.0, new OpenCvSharp.Size(frame.Width, frame.Height), new Scalar(), true, false);
                     net.SetInput(blob);
                     using var resultBlob = net.Forward();
 
-                    // Convert blob [1, 3, H, W] back to Mat [H, W, 3]
-                    // This is a simplified conversion for EDSR
                     int outH = resultBlob.Size(2);
                     int outW = resultBlob.Size(3);
-                    using var outputMat = new Mat(outH, outW, MatType.CV_32FC3, resultBlob.Data);
 
-                    // Most EDSR models output values in [0, 255] or [0, 1].
-                    // OpenCvSharp Mat needs byte values [0, 255] for writer.
+                    // Use Mat.FromPixelData instead of deprecated constructor
+                    using var outputMat = Mat.FromPixelData(outH, outW, MatType.CV_32FC3, resultBlob.Data);
                     outputMat.ConvertTo(upscaled, MatType.CV_8UC3);
 
                     if (factor != 2.0)
@@ -192,17 +189,8 @@ namespace VideoUpscalerVS
                         _ => InterpolationFlags.Lanczos4
                     };
 
-                    if (deviceIdx == 2) // OpenCL
-                    {
-                        using var uFrame = frame.ToUMat(AccessFlag.Read);
-                        using var uUpscaled = new UMat();
-                        Cv2.Resize(uFrame, uUpscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
-                        uUpscaled.CopyTo(upscaled);
-                    }
-                    else
-                    {
-                        Cv2.Resize(frame, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
-                    }
+                    // Transparent API in OpenCV handles OpenCL automatically via Mat if Cv2.UseOpenCL is true
+                    Cv2.Resize(frame, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, flag);
                 }
                 writer.Write(upscaled);
             }
