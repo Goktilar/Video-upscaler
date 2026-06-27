@@ -3,5 +3,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
+        <!-- Modern Dark/Light Styles -->
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
+
+        <Style TargetType="ProgressBar">
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
     </Application.Resources>
 </Application>

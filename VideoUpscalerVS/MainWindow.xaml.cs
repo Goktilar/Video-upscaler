@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
+using System.Globalization;
 
 namespace VideoUpscalerVS
 {
@@ -19,20 +20,55 @@ namespace VideoUpscalerVS
         public string RemainingTime { get; set; }
     }
 
+    public enum ThemeMode { System, Light, Dark }
+
     public partial class MainWindow : System.Windows.Window
     {
         private string selectedPath = "";
         private Localization currentLang;
         private CancellationTokenSource? cts;
-        private bool isDarkTheme = false;
+        private ThemeMode currentThemeMode = ThemeMode.System;
         private string currentLangKey = "English";
 
         public MainWindow()
         {
             InitializeComponent();
-            LangCombo.SelectedIndex = 0; // English (🇺🇸)
+            DetectSystemDefaults();
             UpdateLocalization();
             ApplyTheme();
+        }
+
+        private void DetectSystemDefaults()
+        {
+            // Language detection
+            string sysLang = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            if (sysLang == "ru")
+            {
+                currentLangKey = "Русский";
+                LangCombo.SelectedIndex = 1;
+            }
+            else
+            {
+                currentLangKey = "English";
+                LangCombo.SelectedIndex = 0;
+            }
+
+            // Theme detection (Default to System)
+            currentThemeMode = ThemeMode.System;
+        }
+
+        private bool IsSystemInDarkMode()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                {
+                    var val = key?.GetValue("AppsUseLightTheme");
+                    if (val != null) return (int)val == 0;
+                }
+            }
+            catch { }
+            return false;
         }
 
         private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -44,7 +80,13 @@ namespace VideoUpscalerVS
 
         private void ThemeBtn_Click(object sender, RoutedEventArgs e)
         {
-            isDarkTheme = !isDarkTheme;
+            // Cycle: System -> Light -> Dark -> System
+            currentThemeMode = currentThemeMode switch
+            {
+                ThemeMode.System => ThemeMode.Light,
+                ThemeMode.Light => ThemeMode.Dark,
+                _ => ThemeMode.System
+            };
             ApplyTheme();
         }
 
@@ -62,12 +104,12 @@ namespace VideoUpscalerVS
             int prevMethodIndex = MethodCombo?.SelectedIndex ?? 0;
             MethodCombo.Items.Clear();
             foreach (var m in currentLang.InterpMethods) MethodCombo.Items.Add(m);
-            MethodCombo.SelectedIndex = prevMethodIndex >= 0 ? prevMethodIndex : 0;
+            MethodCombo.SelectedIndex = Math.Max(0, prevMethodIndex);
 
             int prevDeviceIndex = DeviceCombo?.SelectedIndex ?? 0;
             DeviceCombo.Items.Clear();
             foreach (var d in currentLang.Devices) DeviceCombo.Items.Add(d);
-            DeviceCombo.SelectedIndex = prevDeviceIndex >= 0 ? prevDeviceIndex : 0;
+            DeviceCombo.SelectedIndex = Math.Max(0, prevDeviceIndex);
 
             if (FilePathLabel.Text == "No file selected" || FilePathLabel.Text == "Файл не выбран")
                 FilePathLabel.Text = currentLang.NoFile;
@@ -77,10 +119,29 @@ namespace VideoUpscalerVS
 
         private void ApplyTheme()
         {
-            ThemeBtn.Content = isDarkTheme ? "🌙" : "☀️";
-            var bg = isDarkTheme ? new SolidColorBrush(Color.FromRgb(14, 17, 23)) : Brushes.White;
-            var fg = isDarkTheme ? Brushes.White : Brushes.Black;
+            bool useDark;
+            if (currentThemeMode == ThemeMode.System)
+            {
+                ThemeBtn.Content = "🌓";
+                useDark = IsSystemInDarkMode();
+            }
+            else if (currentThemeMode == ThemeMode.Dark)
+            {
+                ThemeBtn.Content = "🌙";
+                useDark = true;
+            }
+            else
+            {
+                ThemeBtn.Content = "☀️";
+                useDark = false;
+            }
 
+            var bg = useDark ? new SolidColorBrush(Color.FromRgb(30, 30, 30)) : Brushes.White;
+            var panelBg = useDark ? new SolidColorBrush(Color.FromRgb(45, 45, 48)) : new SolidColorBrush(Color.FromRgb(240, 240, 240));
+            var fg = useDark ? Brushes.White : Brushes.Black;
+            var border = useDark ? new SolidColorBrush(Color.FromRgb(63, 63, 70)) : Brushes.Gray;
+
+            this.Background = bg;
             MainGrid.Background = bg;
             TitleLabel.Foreground = fg;
             FilePathLabel.Foreground = fg;
@@ -88,9 +149,24 @@ namespace VideoUpscalerVS
             MethodLabel.Foreground = fg;
             DeviceLabel.Foreground = fg;
             ETALabel.Foreground = fg;
+            PercLabel.Foreground = fg;
 
-            ThemeBtn.Foreground = fg;
-            ThemeBtn.Background = isDarkTheme ? new SolidColorBrush(Color.FromRgb(40, 44, 52)) : Brushes.LightGray;
+            // Set App-wide theme if possible or just target controls
+            UpdateControlTheme(this, useDark, fg, panelBg, border);
+        }
+
+        private void UpdateControlTheme(DependencyObject parent, bool isDark, Brush fg, Brush bg, Brush border)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is Control c && !(c is Button && (c.Name == "StartBtn" || c.Name == "CancelBtn")))
+                {
+                    c.Foreground = fg;
+                    if (c is ComboBox || c is TextBox) c.Background = bg;
+                }
+                UpdateControlTheme(child, isDark, fg, bg, border);
+            }
         }
 
         private void SelectFileBtn_Click(object sender, RoutedEventArgs e)
@@ -114,12 +190,8 @@ namespace VideoUpscalerVS
         {
             if (string.IsNullOrEmpty(selectedPath)) return;
 
-            // Use temp folder for intermediate result to keep source folder clean
-            string tempOutputPath = Path.Combine(Path.GetTempPath(),
-                "upscale_temp_" + Guid.NewGuid().ToString("N") + ".mp4");
-
-            string finalOutputPath = Path.Combine(Path.GetDirectoryName(selectedPath),
-                Path.GetFileNameWithoutExtension(selectedPath) + "_upscaled.mp4");
+            string tempOutputPath = Path.Combine(Path.GetTempPath(), "upscale_temp_" + Guid.NewGuid().ToString("N") + ".mp4");
+            string finalOutputPath = Path.Combine(Path.GetDirectoryName(selectedPath), Path.GetFileNameWithoutExtension(selectedPath) + "_upscaled.mp4");
 
             double factor = FactorSlider.Value;
             int methodIdx = MethodCombo.SelectedIndex;
@@ -143,13 +215,9 @@ namespace VideoUpscalerVS
 
             try
             {
-                // 1. Upscale video
                 await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token), cts.Token);
-
-                // 2. Mux audio
                 StatusLabel.Text = "Muxing audio...";
                 await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath, cts.Token), cts.Token);
-
                 StatusLabel.Text = currentLang.Success;
                 MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
             }
@@ -157,7 +225,6 @@ namespace VideoUpscalerVS
             {
                 StatusLabel.Text = currentLang.Cancelled;
                 StatusLabel.Foreground = Brushes.Red;
-                // Deletion of incomplete final output
                 if (File.Exists(finalOutputPath)) try { File.Delete(finalOutputPath); } catch { }
             }
             catch (Exception ex)
@@ -166,12 +233,7 @@ namespace VideoUpscalerVS
             }
             finally
             {
-                // Strict deletion of temp video file (without audio)
-                if (File.Exists(tempOutputPath))
-                {
-                    try { File.Delete(tempOutputPath); } catch { }
-                }
-
+                if (File.Exists(tempOutputPath)) try { File.Delete(tempOutputPath); } catch { }
                 ProgressGrid.Visibility = Visibility.Collapsed;
                 SetUIEnabled(true);
                 cts?.Dispose();

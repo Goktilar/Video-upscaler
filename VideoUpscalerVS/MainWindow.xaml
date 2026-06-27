@@ -5,21 +5,21 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VideoUpscalerVS"
         mc:Ignorable="d"
-        Title="Video Upscaler" Height="500" Width="600">
+        Title="Video Upscaler" Height="500" Width="600" WindowStartupLocation="CenterScreen">
     <Grid Name="MainGrid">
         <StackPanel Margin="20">
             <DockPanel Margin="0,0,0,20">
                 <TextBlock Name="TitleLabel" Text="Video Upscaler" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="55" Height="30" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18">
+                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="55" Height="35" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18">
                         <ComboBoxItem Content="🇺🇸"/>
                         <ComboBoxItem Content="🇷🇺"/>
                     </ComboBox>
-                    <Button Name="ThemeBtn" Content="☀️" Click="ThemeBtn_Click" Width="40" Height="30" Margin="5,0"/>
+                    <Button Name="ThemeBtn" Content="🌓" Click="ThemeBtn_Click" Width="40" Height="35" Margin="5,0" FontSize="18"/>
                 </StackPanel>
             </DockPanel>
 
-            <Button Name="SelectFileBtn" Content="Select Video File" Click="SelectFileBtn_Click" Margin="0,0,0,10"/>
+            <Button Name="SelectFileBtn" Content="Select Video File" Click="SelectFileBtn_Click" Margin="0,0,0,10" Height="35"/>
             <TextBlock Name="FilePathLabel" Text="No file selected" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
 
             <DockPanel Margin="0,0,0,10">
@@ -29,32 +29,30 @@
 
             <DockPanel Margin="0,0,0,10">
                 <TextBlock Name="MethodLabel" Text="Interpolation:" VerticalAlignment="Center" Width="120"/>
-                <ComboBox Name="MethodCombo" SelectedIndex="0">
-                </ComboBox>
+                <ComboBox Name="MethodCombo" SelectedIndex="0" Height="30"/>
             </DockPanel>
 
             <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="DeviceLabel" Text="Device (Optimization):" VerticalAlignment="Center" Width="150"/>
-                <ComboBox Name="DeviceCombo" SelectedIndex="0">
-                </ComboBox>
+                <TextBlock Name="DeviceLabel" Text="Device:" VerticalAlignment="Center" Width="150"/>
+                <ComboBox Name="DeviceCombo" SelectedIndex="0" Height="30"/>
             </DockPanel>
 
-            <Button Name="StartBtn" Content="Start Upscaling" Click="StartBtn_Click" Height="40" Background="LightBlue"/>
+            <Button Name="StartBtn" Content="Start Upscaling" Click="StartBtn_Click" Height="45" Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="14"/>
 
-            <Grid Name="ProgressGrid" Visibility="Collapsed" Margin="0,10,0,0">
+            <Grid Name="ProgressGrid" Visibility="Collapsed" Margin="0,15,0,0">
                 <StackPanel>
                     <Grid>
-                        <ProgressBar Name="ProgBar" Height="25" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
+                        <ProgressBar Name="ProgBar" Height="30" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
                         <TextBlock Name="PercLabel" Text="0%" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
                     </Grid>
                     <DockPanel Margin="0,5,0,0">
-                        <Button Name="CancelBtn" Content="Cancel" Click="CancelBtn_Click" Width="80" HorizontalAlignment="Left" Background="#FFE0E0"/>
-                        <TextBlock Name="ETALabel" Text="Time remaining: ..." HorizontalAlignment="Right" FontSize="11" VerticalAlignment="Center"/>
+                        <Button Name="CancelBtn" Content="Cancel" Click="CancelBtn_Click" Width="90" Height="25" HorizontalAlignment="Left" Background="#D32F2F" Foreground="White"/>
+                        <TextBlock Name="ETALabel" Text="Time remaining: ..." HorizontalAlignment="Right" FontSize="12" VerticalAlignment="Center"/>
                     </DockPanel>
                 </StackPanel>
             </Grid>
 
-            <TextBlock Name="StatusLabel" Text="" Margin="0,5,0,0" Foreground="Green"/>
+            <TextBlock Name="StatusLabel" Text="" Margin="0,10,0,0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
         </StackPanel>
     </Grid>
 </Window>
