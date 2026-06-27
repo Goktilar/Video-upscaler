@@ -114,8 +114,10 @@ namespace VideoUpscalerVS
         {
             if (string.IsNullOrEmpty(selectedPath)) return;
 
-            string tempOutputPath = Path.Combine(Path.GetDirectoryName(selectedPath),
-                Path.GetFileNameWithoutExtension(selectedPath) + "_temp_no_audio.mp4");
+            // Use temp folder for intermediate result to keep source folder clean
+            string tempOutputPath = Path.Combine(Path.GetTempPath(),
+                "upscale_temp_" + Guid.NewGuid().ToString("N") + ".mp4");
+
             string finalOutputPath = Path.Combine(Path.GetDirectoryName(selectedPath),
                 Path.GetFileNameWithoutExtension(selectedPath) + "_upscaled.mp4");
 
@@ -141,9 +143,13 @@ namespace VideoUpscalerVS
 
             try
             {
+                // 1. Upscale video
                 await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token), cts.Token);
+
+                // 2. Mux audio
                 StatusLabel.Text = "Muxing audio...";
                 await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath, cts.Token), cts.Token);
+
                 StatusLabel.Text = currentLang.Success;
                 MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
             }
@@ -151,6 +157,8 @@ namespace VideoUpscalerVS
             {
                 StatusLabel.Text = currentLang.Cancelled;
                 StatusLabel.Foreground = Brushes.Red;
+                // Deletion of incomplete final output
+                if (File.Exists(finalOutputPath)) try { File.Delete(finalOutputPath); } catch { }
             }
             catch (Exception ex)
             {
@@ -158,8 +166,11 @@ namespace VideoUpscalerVS
             }
             finally
             {
-                if (File.Exists(tempOutputPath)) try { File.Delete(tempOutputPath); } catch { }
-                if (cts?.IsCancellationRequested == true && File.Exists(finalOutputPath)) try { File.Delete(finalOutputPath); } catch { }
+                // Strict deletion of temp video file (without audio)
+                if (File.Exists(tempOutputPath))
+                {
+                    try { File.Delete(tempOutputPath); } catch { }
+                }
 
                 ProgressGrid.Visibility = Visibility.Collapsed;
                 SetUIEnabled(true);
