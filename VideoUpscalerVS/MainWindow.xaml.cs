@@ -36,11 +36,15 @@ namespace VideoUpscalerVS
             DetectSystemDefaults();
             UpdateLocalization();
             ApplyTheme();
+
+            // Listen for system preference changes (theme, colors)
+            SystemEvents.UserPreferenceChanged += (s, e) => {
+                if (currentThemeMode == ThemeMode.System) ApplyTheme();
+            };
         }
 
         private void DetectSystemDefaults()
         {
-            // Language detection
             string sysLang = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
             if (sysLang == "ru")
             {
@@ -52,8 +56,6 @@ namespace VideoUpscalerVS
                 currentLangKey = "English";
                 LangCombo.SelectedIndex = 0;
             }
-
-            // Theme detection (Default to System)
             currentThemeMode = ThemeMode.System;
         }
 
@@ -80,7 +82,6 @@ namespace VideoUpscalerVS
 
         private void ThemeBtn_Click(object sender, RoutedEventArgs e)
         {
-            // Cycle: System -> Light -> Dark -> System
             currentThemeMode = currentThemeMode switch
             {
                 ThemeMode.System => ThemeMode.Light,
@@ -111,10 +112,14 @@ namespace VideoUpscalerVS
             foreach (var d in currentLang.Devices) DeviceCombo.Items.Add(d);
             DeviceCombo.SelectedIndex = Math.Max(0, prevDeviceIndex);
 
-            if (FilePathLabel.Text == "No file selected" || FilePathLabel.Text == "Файл не выбран")
+            if (string.IsNullOrEmpty(selectedPath))
                 FilePathLabel.Text = currentLang.NoFile;
+            else
+                FilePathLabel.Text = selectedPath;
 
             FactorLabel.Text = $"{currentLang.UpscaleFactor} (x{FactorSlider.Value:F1}):";
+
+            if (cts != null) StatusLabel.Text = currentLang.Processing;
         }
 
         private void ApplyTheme()
@@ -151,7 +156,9 @@ namespace VideoUpscalerVS
             ETALabel.Foreground = fg;
             PercLabel.Foreground = fg;
 
-            // Set App-wide theme if possible or just target controls
+            ThemeBtn.Foreground = fg;
+            ThemeBtn.Background = useDark ? new SolidColorBrush(Color.FromRgb(60, 60, 65)) : Brushes.LightGray;
+
             UpdateControlTheme(this, useDark, fg, panelBg, border);
         }
 
@@ -160,10 +167,19 @@ namespace VideoUpscalerVS
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
             {
                 var child = VisualTreeHelper.GetChild(parent, i);
-                if (child is Control c && !(c is Button && (c.Name == "StartBtn" || c.Name == "CancelBtn")))
+                if (child is Control c)
                 {
-                    c.Foreground = fg;
-                    if (c is ComboBox || c is TextBox) c.Background = bg;
+                    if (c is Button btn && (btn.Name == "StartBtn" || btn.Name == "CancelBtn" || btn.Name == "ThemeBtn"))
+                    {
+                        // Keep specialized colors or update selectively
+                        if (btn.Name == "ThemeBtn") { btn.Foreground = fg; btn.Background = bg; }
+                    }
+                    else
+                    {
+                        c.Foreground = fg;
+                        c.Background = bg;
+                        c.BorderBrush = border;
+                    }
                 }
                 UpdateControlTheme(child, isDark, fg, bg, border);
             }
@@ -235,9 +251,10 @@ namespace VideoUpscalerVS
             {
                 if (File.Exists(tempOutputPath)) try { File.Delete(tempOutputPath); } catch { }
                 ProgressGrid.Visibility = Visibility.Collapsed;
-                SetUIEnabled(true);
                 cts?.Dispose();
                 cts = null;
+                SetUIEnabled(true);
+                UpdateLocalization(); // Refresh strings
             }
         }
 
