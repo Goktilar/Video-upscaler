@@ -11,7 +11,10 @@
             <DockPanel Margin="0,0,0,20">
                 <TextBlock Name="TitleLabel" Text="Video Upscaler" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Name="LangBtn" Content="EN" Click="LangBtn_Click" Width="40" Height="30" Margin="5,0"/>
+                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="55" Height="30" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18">
+                        <ComboBoxItem Content="🇺🇸"/>
+                        <ComboBoxItem Content="🇷🇺"/>
+                    </ComboBox>
                     <Button Name="ThemeBtn" Content="☀️" Click="ThemeBtn_Click" Width="40" Height="30" Margin="5,0"/>
                 </StackPanel>
             </DockPanel>

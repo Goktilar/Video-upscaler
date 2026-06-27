@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Controls;
 using Microsoft.Win32;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
@@ -29,13 +30,15 @@ namespace VideoUpscalerVS
         public MainWindow()
         {
             InitializeComponent();
+            LangCombo.SelectedIndex = 0; // English (🇺🇸)
             UpdateLocalization();
             ApplyTheme();
         }
 
-        private void LangBtn_Click(object sender, RoutedEventArgs e)
+        private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            currentLangKey = (currentLangKey == "English") ? "Русский" : "English";
+            if (LangCombo == null) return;
+            currentLangKey = (LangCombo.SelectedIndex == 1) ? "Русский" : "English";
             UpdateLocalization();
         }
 
@@ -48,7 +51,6 @@ namespace VideoUpscalerVS
         private void UpdateLocalization()
         {
             currentLang = Languages[currentLangKey];
-            LangBtn.Content = (currentLangKey == "English") ? "RU" : "EN";
 
             TitleLabel.Text = currentLang.Title;
             SelectFileBtn.Content = currentLang.UploadVideo;
@@ -87,11 +89,8 @@ namespace VideoUpscalerVS
             DeviceLabel.Foreground = fg;
             ETALabel.Foreground = fg;
 
-            // Buttons and Combos
-            LangBtn.Foreground = fg;
-            LangBtn.Background = isDarkTheme ? new SolidColorBrush(Color.FromRgb(40, 44, 52)) : Brushes.LightGray;
             ThemeBtn.Foreground = fg;
-            ThemeBtn.Background = LangBtn.Background;
+            ThemeBtn.Background = isDarkTheme ? new SolidColorBrush(Color.FromRgb(40, 44, 52)) : Brushes.LightGray;
         }
 
         private void SelectFileBtn_Click(object sender, RoutedEventArgs e)
@@ -176,7 +175,7 @@ namespace VideoUpscalerVS
             FactorSlider.IsEnabled = enabled;
             MethodCombo.IsEnabled = enabled;
             DeviceCombo.IsEnabled = enabled;
-            LangBtn.IsEnabled = enabled;
+            LangCombo.IsEnabled = enabled;
             ThemeBtn.IsEnabled = enabled;
         }
 
