@@ -23,28 +23,34 @@ namespace VideoUpscalerVS
         private string selectedPath = "";
         private Localization currentLang;
         private CancellationTokenSource? cts;
+        private bool isDarkTheme = false;
+        private string currentLangKey = "English";
 
         public MainWindow()
         {
             InitializeComponent();
-            LangCombo.SelectedIndex = 0; // English
-            ThemeCombo.SelectedIndex = 0; // Light
+            UpdateLocalization();
+            ApplyTheme();
         }
 
-        private void LangCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void LangBtn_Click(object sender, RoutedEventArgs e)
         {
+            currentLangKey = (currentLangKey == "English") ? "Русский" : "English";
             UpdateLocalization();
+        }
+
+        private void ThemeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            isDarkTheme = !isDarkTheme;
+            ApplyTheme();
         }
 
         private void UpdateLocalization()
         {
-            if (LangCombo == null) return;
-            string lang = (LangCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content.ToString() ?? "English";
-            currentLang = Languages[lang];
+            currentLang = Languages[currentLangKey];
+            LangBtn.Content = (currentLangKey == "English") ? "RU" : "EN";
 
             TitleLabel.Text = currentLang.Title;
-            LangLabel.Text = currentLang.SelectLang;
-            ThemeLabel.Text = currentLang.SelectTheme;
             SelectFileBtn.Content = currentLang.UploadVideo;
             StartBtn.Content = currentLang.StartButton;
             CancelBtn.Content = currentLang.CancelButton;
@@ -60,25 +66,32 @@ namespace VideoUpscalerVS
             DeviceCombo.Items.Clear();
             foreach (var d in currentLang.Devices) DeviceCombo.Items.Add(d);
             DeviceCombo.SelectedIndex = prevDeviceIndex >= 0 ? prevDeviceIndex : 0;
+
+            if (FilePathLabel.Text == "No file selected" || FilePathLabel.Text == "Файл не выбран")
+                FilePathLabel.Text = currentLang.NoFile;
+
+            FactorLabel.Text = $"{currentLang.UpscaleFactor} (x{FactorSlider.Value:F1}):";
         }
 
-        private void ThemeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void ApplyTheme()
         {
-            if (ThemeCombo == null) return;
-            string theme = (ThemeCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content.ToString() ?? "Light";
+            ThemeBtn.Content = isDarkTheme ? "🌙" : "☀️";
+            var bg = isDarkTheme ? new SolidColorBrush(Color.FromRgb(14, 17, 23)) : Brushes.White;
+            var fg = isDarkTheme ? Brushes.White : Brushes.Black;
 
-            bool isDark = theme == "Dark" || theme == "Темная";
-            MainGrid.Background = isDark ? new SolidColorBrush(Color.FromRgb(14, 17, 23)) : System.Windows.Media.Brushes.White;
-            var brush = isDark ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black;
+            MainGrid.Background = bg;
+            TitleLabel.Foreground = fg;
+            FilePathLabel.Foreground = fg;
+            FactorLabel.Foreground = fg;
+            MethodLabel.Foreground = fg;
+            DeviceLabel.Foreground = fg;
+            ETALabel.Foreground = fg;
 
-            TitleLabel.Foreground = brush;
-            LangLabel.Foreground = brush;
-            ThemeLabel.Foreground = brush;
-            FilePathLabel.Foreground = brush;
-            FactorLabel.Foreground = brush;
-            MethodLabel.Foreground = brush;
-            DeviceLabel.Foreground = brush;
-            ETALabel.Foreground = brush;
+            // Buttons and Combos
+            LangBtn.Foreground = fg;
+            LangBtn.Background = isDarkTheme ? new SolidColorBrush(Color.FromRgb(40, 44, 52)) : Brushes.LightGray;
+            ThemeBtn.Foreground = fg;
+            ThemeBtn.Background = LangBtn.Background;
         }
 
         private void SelectFileBtn_Click(object sender, RoutedEventArgs e)
@@ -94,8 +107,8 @@ namespace VideoUpscalerVS
 
         private void FactorSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (FactorLabel != null)
-                FactorLabel.Text = $"{(currentLang != null ? currentLang.UpscaleFactor : "Factor")} (x{e.NewValue:F1}):";
+            if (FactorLabel != null && currentLang != null)
+                FactorLabel.Text = $"{currentLang.UpscaleFactor} (x{e.NewValue:F1}):";
         }
 
         private async void StartBtn_Click(object sender, RoutedEventArgs e)
@@ -129,15 +142,11 @@ namespace VideoUpscalerVS
 
             try
             {
-                // 1. Upscale video
                 await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token), cts.Token);
-
-                // 2. Mux audio
                 StatusLabel.Text = "Muxing audio...";
                 await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath, cts.Token), cts.Token);
-
                 StatusLabel.Text = currentLang.Success;
-                System.Windows.MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
+                MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
             }
             catch (Exception ex) when (ex is OperationCanceledException || ex.InnerException is OperationCanceledException)
             {
@@ -146,7 +155,7 @@ namespace VideoUpscalerVS
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("Error: " + ex.Message);
+                MessageBox.Show("Error: " + ex.Message);
             }
             finally
             {
@@ -164,11 +173,11 @@ namespace VideoUpscalerVS
         {
             StartBtn.IsEnabled = enabled;
             SelectFileBtn.IsEnabled = enabled;
-            LangCombo.IsEnabled = enabled;
-            ThemeCombo.IsEnabled = enabled;
             FactorSlider.IsEnabled = enabled;
             MethodCombo.IsEnabled = enabled;
             DeviceCombo.IsEnabled = enabled;
+            LangBtn.IsEnabled = enabled;
+            ThemeBtn.IsEnabled = enabled;
         }
 
         private void CancelBtn_Click(object sender, RoutedEventArgs e)
@@ -252,41 +261,22 @@ namespace VideoUpscalerVS
         private void MuxAudio(string originalVideo, string upscaledVideo, string outputVideo, CancellationToken token)
         {
             string args = $"-i \"{upscaledVideo}\" -i \"{originalVideo}\" -map 0:v -map 1:a? -c:v copy -c:a copy -shortest \"{outputVideo}\" -y";
-
-            ProcessStartInfo psi = new ProcessStartInfo("ffmpeg", args)
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-
+            ProcessStartInfo psi = new ProcessStartInfo("ffmpeg", args) { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden };
             using (Process? p = Process.Start(psi))
             {
                 if (p == null) return;
-
-                using (token.Register(() => { try { p.Kill(); } catch { } }))
-                {
-                    p.WaitForExit();
-                }
-
+                using (token.Register(() => { try { p.Kill(); } catch { } })) p.WaitForExit();
                 if (token.IsCancellationRequested) token.ThrowIfCancellationRequested();
-
-                if (p.ExitCode != 0 && !File.Exists(outputVideo))
-                {
-                    File.Copy(upscaledVideo, outputVideo, true);
-                }
+                if (p.ExitCode != 0 && !File.Exists(outputVideo)) File.Copy(upscaledVideo, outputVideo, true);
             }
         }
 
         private Dictionary<string, Localization> Languages = new Dictionary<string, Localization>
         {
-            ["English"] = new Localization { Title = "Video Upscaler", SelectLang = "Language:", SelectTheme = "Theme:", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", Device = "Device (Optimization):", StartButton = "Start Upscaling", CancelButton = "Cancel", Processing = "Processing...", Success = "Done!", Cancelled = "Cancelled", RemainingTime = "Remaining time", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" }, Devices = new List<string> { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } },
-            ["Русский"] = new Localization { Title = "Видео Апскейлер", SelectLang = "Язык:", SelectTheme = "Тема:", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", Device = "Устройство:", StartButton = "Начать", CancelButton = "Отмена", Processing = "Обработка...", Success = "Готово!", Cancelled = "Отменено", RemainingTime = "Осталось времени", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" }, Devices = new List<string> { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } }
+            ["English"] = new Localization { Title = "Video Upscaler", NoFile = "No file selected", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", Device = "Device:", StartButton = "Start Upscaling", CancelButton = "Cancel", Processing = "Processing...", Success = "Done!", Cancelled = "Cancelled", RemainingTime = "Remaining", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" }, Devices = new List<string> { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } },
+            ["Русский"] = new Localization { Title = "Видео Апскейлер", NoFile = "Файл не выбран", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", Device = "Устройство:", StartButton = "Начать", CancelButton = "Отмена", Processing = "Обработка...", Success = "Готово!", Cancelled = "Отменено", RemainingTime = "Осталось", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" }, Devices = new List<string> { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } }
         };
     }
 
-    public class Localization
-    {
-        public string Title { get; set; } public string SelectLang { get; set; } public string SelectTheme { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string Device { get; set; } public string StartButton { get; set; } public string CancelButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public string Cancelled { get; set; } public string RemainingTime { get; set; } public List<string> InterpMethods { get; set; } public List<string> Devices { get; set; }
-    }
+    public class Localization { public string Title { get; set; } public string NoFile { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string Device { get; set; } public string StartButton { get; set; } public string CancelButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public string Cancelled { get; set; } public string RemainingTime { get; set; } public List<string> InterpMethods { get; set; } public List<string> Devices { get; set; } }
 }
