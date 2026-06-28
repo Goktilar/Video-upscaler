@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+    <system:String x:Key="Title">Video Upscaler</system:String>
+    <system:String x:Key="NoFile">No file selected</system:String>
+    <system:String x:Key="UploadVideo">Select Video File</system:String>
+    <system:String x:Key="UpscaleFactor">Upscale Factor</system:String>
+    <system:String x:Key="Interpolation">Interpolation:</system:String>
+    <system:String x:Key="Device">Device:</system:String>
+    <system:String x:Key="StartButton">Start Upscaling</system:String>
+    <system:String x:Key="CancelButton">Cancel</system:String>
+    <system:String x:Key="Processing">Processing...</system:String>
+    <system:String x:Key="Success">Done!</system:String>
+    <system:String x:Key="Cancelled">Cancelled</system:String>
+    <system:String x:Key="RemainingTime">Remaining</system:String>
+</ResourceDictionary>

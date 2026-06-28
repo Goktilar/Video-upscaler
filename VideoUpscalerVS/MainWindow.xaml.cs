@@ -25,7 +25,6 @@ namespace VideoUpscalerVS
     public partial class MainWindow : System.Windows.Window
     {
         private string selectedPath = "";
-        private Localization currentLang;
         private CancellationTokenSource? cts;
         private ThemeMode currentThemeMode = ThemeMode.System;
         private string currentLangKey = "English";
@@ -33,11 +32,11 @@ namespace VideoUpscalerVS
         public MainWindow()
         {
             InitializeComponent();
-            DetectSystemDefaults();
-            UpdateLocalization();
-            ApplyTheme();
 
-            // Listen for system preference changes (theme, colors)
+            // Initial language and theme setup
+            DetectSystemDefaults();
+
+            // Register for system theme changes
             SystemEvents.UserPreferenceChanged += (s, e) => {
                 if (currentThemeMode == ThemeMode.System) ApplyTheme();
             };
@@ -56,7 +55,99 @@ namespace VideoUpscalerVS
                 currentLangKey = "English";
                 LangCombo.SelectedIndex = 0;
             }
-            currentThemeMode = ThemeMode.System;
+
+            // Set initial language and theme
+            SwitchLanguage(currentLangKey == "Русский" ? "ru-RU" : "en-US");
+            ApplyTheme();
+        }
+
+        private void SwitchLanguage(string cultureCode)
+        {
+            var dict = new ResourceDictionary { Source = new Uri($"Resources/Languages/{cultureCode}.xaml", UriKind.Relative) };
+
+            // Remove old language dictionary if any
+            for (int i = 0; i < Resources.MergedDictionaries.Count; i++)
+            {
+                if (Resources.MergedDictionaries[i].Source.OriginalString.Contains("Languages/"))
+                {
+                    Resources.MergedDictionaries.RemoveAt(i);
+                    break;
+                }
+            }
+            Resources.MergedDictionaries.Add(dict);
+
+            UpdateInterpolationAndDevices();
+            UpdateLabels();
+        }
+
+        private void UpdateLabels()
+        {
+            if (string.IsNullOrEmpty(selectedPath))
+                FilePathLabel.Text = (string)FindResource("NoFile");
+            else
+                FilePathLabel.Text = selectedPath;
+
+            FactorLabel.Text = $"{(string)FindResource("UpscaleFactor")} (x{FactorSlider.Value:F1}):";
+        }
+
+        private void UpdateInterpolationAndDevices()
+        {
+            bool isRu = currentLangKey == "Русский";
+            var interp = isRu ? new[] { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" } : new[] { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" };
+            var devices = isRu ? new[] { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } : new[] { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" };
+
+            int prevM = MethodCombo.SelectedIndex;
+            MethodCombo.Items.Clear();
+            foreach (var s in interp) MethodCombo.Items.Add(s);
+            MethodCombo.SelectedIndex = Math.Max(0, prevM);
+
+            int prevD = DeviceCombo.SelectedIndex;
+            DeviceCombo.Items.Clear();
+            foreach (var s in devices) DeviceCombo.Items.Add(s);
+            DeviceCombo.SelectedIndex = Math.Max(0, prevD);
+        }
+
+        private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LangCombo == null) return;
+            currentLangKey = (LangCombo.SelectedIndex == 1) ? "Русский" : "English";
+            SwitchLanguage(currentLangKey == "Русский" ? "ru-RU" : "en-US");
+        }
+
+        private void ThemeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            currentThemeMode = currentThemeMode switch
+            {
+                ThemeMode.System => ThemeMode.Light,
+                ThemeMode.Light => ThemeMode.Dark,
+                _ => ThemeMode.System
+            };
+            ApplyTheme();
+        }
+
+        private void ApplyTheme()
+        {
+            bool useDark = currentThemeMode switch
+            {
+                ThemeMode.Dark => true,
+                ThemeMode.Light => false,
+                _ => IsSystemInDarkMode()
+            };
+
+            ThemeBtn.Content = currentThemeMode switch { ThemeMode.Dark => "🌙", ThemeMode.Light => "☀️", _ => "🌓" };
+
+            var themeName = useDark ? "Dark" : "Light";
+            var dict = new ResourceDictionary { Source = new Uri($"Resources/Themes/{themeName}.xaml", UriKind.Relative) };
+
+            for (int i = 0; i < Resources.MergedDictionaries.Count; i++)
+            {
+                if (Resources.MergedDictionaries[i].Source.OriginalString.Contains("Themes/"))
+                {
+                    Resources.MergedDictionaries.RemoveAt(i);
+                    break;
+                }
+            }
+            Resources.MergedDictionaries.Add(dict);
         }
 
         private bool IsSystemInDarkMode()
@@ -73,118 +164,6 @@ namespace VideoUpscalerVS
             return false;
         }
 
-        private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (LangCombo == null) return;
-            currentLangKey = (LangCombo.SelectedIndex == 1) ? "Русский" : "English";
-            UpdateLocalization();
-        }
-
-        private void ThemeBtn_Click(object sender, RoutedEventArgs e)
-        {
-            currentThemeMode = currentThemeMode switch
-            {
-                ThemeMode.System => ThemeMode.Light,
-                ThemeMode.Light => ThemeMode.Dark,
-                _ => ThemeMode.System
-            };
-            ApplyTheme();
-        }
-
-        private void UpdateLocalization()
-        {
-            currentLang = Languages[currentLangKey];
-
-            TitleLabel.Text = currentLang.Title;
-            SelectFileBtn.Content = currentLang.UploadVideo;
-            StartBtn.Content = currentLang.StartButton;
-            CancelBtn.Content = currentLang.CancelButton;
-            MethodLabel.Text = currentLang.Interpolation;
-            DeviceLabel.Text = currentLang.Device;
-
-            int prevMethodIndex = MethodCombo?.SelectedIndex ?? 0;
-            MethodCombo.Items.Clear();
-            foreach (var m in currentLang.InterpMethods) MethodCombo.Items.Add(m);
-            MethodCombo.SelectedIndex = Math.Max(0, prevMethodIndex);
-
-            int prevDeviceIndex = DeviceCombo?.SelectedIndex ?? 0;
-            DeviceCombo.Items.Clear();
-            foreach (var d in currentLang.Devices) DeviceCombo.Items.Add(d);
-            DeviceCombo.SelectedIndex = Math.Max(0, prevDeviceIndex);
-
-            if (string.IsNullOrEmpty(selectedPath))
-                FilePathLabel.Text = currentLang.NoFile;
-            else
-                FilePathLabel.Text = selectedPath;
-
-            FactorLabel.Text = $"{currentLang.UpscaleFactor} (x{FactorSlider.Value:F1}):";
-
-            if (cts != null) StatusLabel.Text = currentLang.Processing;
-        }
-
-        private void ApplyTheme()
-        {
-            bool useDark;
-            if (currentThemeMode == ThemeMode.System)
-            {
-                ThemeBtn.Content = "🌓";
-                useDark = IsSystemInDarkMode();
-            }
-            else if (currentThemeMode == ThemeMode.Dark)
-            {
-                ThemeBtn.Content = "🌙";
-                useDark = true;
-            }
-            else
-            {
-                ThemeBtn.Content = "☀️";
-                useDark = false;
-            }
-
-            var bg = useDark ? new SolidColorBrush(Color.FromRgb(30, 30, 30)) : Brushes.White;
-            var panelBg = useDark ? new SolidColorBrush(Color.FromRgb(45, 45, 48)) : new SolidColorBrush(Color.FromRgb(240, 240, 240));
-            var fg = useDark ? Brushes.White : Brushes.Black;
-            var border = useDark ? new SolidColorBrush(Color.FromRgb(63, 63, 70)) : Brushes.Gray;
-
-            this.Background = bg;
-            MainGrid.Background = bg;
-            TitleLabel.Foreground = fg;
-            FilePathLabel.Foreground = fg;
-            FactorLabel.Foreground = fg;
-            MethodLabel.Foreground = fg;
-            DeviceLabel.Foreground = fg;
-            ETALabel.Foreground = fg;
-            PercLabel.Foreground = fg;
-
-            ThemeBtn.Foreground = fg;
-            ThemeBtn.Background = useDark ? new SolidColorBrush(Color.FromRgb(60, 60, 65)) : Brushes.LightGray;
-
-            UpdateControlTheme(this, useDark, fg, panelBg, border);
-        }
-
-        private void UpdateControlTheme(DependencyObject parent, bool isDark, Brush fg, Brush bg, Brush border)
-        {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = VisualTreeHelper.GetChild(parent, i);
-                if (child is Control c)
-                {
-                    if (c is Button btn && (btn.Name == "StartBtn" || btn.Name == "CancelBtn" || btn.Name == "ThemeBtn"))
-                    {
-                        // Keep specialized colors or update selectively
-                        if (btn.Name == "ThemeBtn") { btn.Foreground = fg; btn.Background = bg; }
-                    }
-                    else
-                    {
-                        c.Foreground = fg;
-                        c.Background = bg;
-                        c.BorderBrush = border;
-                    }
-                }
-                UpdateControlTheme(child, isDark, fg, bg, border);
-            }
-        }
-
         private void SelectFileBtn_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
@@ -198,8 +177,7 @@ namespace VideoUpscalerVS
 
         private void FactorSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (FactorLabel != null && currentLang != null)
-                FactorLabel.Text = $"{currentLang.UpscaleFactor} (x{e.NewValue:F1}):";
+            if (FactorLabel != null) UpdateLabels();
         }
 
         private async void StartBtn_Click(object sender, RoutedEventArgs e)
@@ -215,8 +193,7 @@ namespace VideoUpscalerVS
 
             SetUIEnabled(false);
             ProgressGrid.Visibility = Visibility.Visible;
-            StatusLabel.Text = currentLang.Processing;
-            StatusLabel.Foreground = Brushes.Green;
+            StatusLabel.Text = (string)FindResource("Processing");
             ProgBar.Value = 0;
             PercLabel.Text = "0%";
             ETALabel.Text = "";
@@ -226,21 +203,19 @@ namespace VideoUpscalerVS
             {
                 ProgBar.Value = info.Percentage;
                 PercLabel.Text = $"{(int)info.Percentage}%";
-                ETALabel.Text = $"{currentLang.RemainingTime}: {info.RemainingTime}";
+                ETALabel.Text = $"{(string)FindResource("RemainingTime")}: {info.RemainingTime}";
             });
 
             try
             {
                 await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token), cts.Token);
-                StatusLabel.Text = "Muxing audio...";
                 await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath, cts.Token), cts.Token);
-                StatusLabel.Text = currentLang.Success;
-                MessageBox.Show(currentLang.Success + "\nSaved to: " + finalOutputPath);
+                StatusLabel.Text = (string)FindResource("Success");
+                MessageBox.Show((string)FindResource("Success") + "\nSaved to: " + finalOutputPath);
             }
             catch (Exception ex) when (ex is OperationCanceledException || ex.InnerException is OperationCanceledException)
             {
-                StatusLabel.Text = currentLang.Cancelled;
-                StatusLabel.Foreground = Brushes.Red;
+                StatusLabel.Text = (string)FindResource("Cancelled");
                 if (File.Exists(finalOutputPath)) try { File.Delete(finalOutputPath); } catch { }
             }
             catch (Exception ex)
@@ -251,10 +226,9 @@ namespace VideoUpscalerVS
             {
                 if (File.Exists(tempOutputPath)) try { File.Delete(tempOutputPath); } catch { }
                 ProgressGrid.Visibility = Visibility.Collapsed;
+                SetUIEnabled(true);
                 cts?.Dispose();
                 cts = null;
-                SetUIEnabled(true);
-                UpdateLocalization(); // Refresh strings
             }
         }
 
@@ -336,12 +310,11 @@ namespace VideoUpscalerVS
                 currentFrame++;
                 if (totalFrames > 0 && currentFrame % 5 == 0)
                 {
-                    double perc = (double)currentFrame / totalFrames * 100.0;
                     double msPerFrame = sw.ElapsedMilliseconds / (double)currentFrame;
                     double remainingMs = msPerFrame * (totalFrames - currentFrame);
                     TimeSpan t = TimeSpan.FromMilliseconds(remainingMs);
                     string eta = t.TotalHours >= 1 ? $"{(int)t.TotalHours:D2}:{t.Minutes:D2}:{t.Seconds:D2}" : $"{t.Minutes:D2}:{t.Seconds:D2}";
-                    progress.Report(new ProgressInfo { Percentage = perc, RemainingTime = eta });
+                    progress.Report(new ProgressInfo { Percentage = (double)currentFrame / totalFrames * 100.0, RemainingTime = eta });
                 }
             }
             net?.Dispose();
@@ -359,13 +332,5 @@ namespace VideoUpscalerVS
                 if (p.ExitCode != 0 && !File.Exists(outputVideo)) File.Copy(upscaledVideo, outputVideo, true);
             }
         }
-
-        private Dictionary<string, Localization> Languages = new Dictionary<string, Localization>
-        {
-            ["English"] = new Localization { Title = "Video Upscaler", NoFile = "No file selected", UploadVideo = "Select Video File", UpscaleFactor = "Upscale Factor", Interpolation = "Interpolation:", Device = "Device:", StartButton = "Start Upscaling", CancelButton = "Cancel", Processing = "Processing...", Success = "Done!", Cancelled = "Cancelled", RemainingTime = "Remaining", InterpMethods = new List<string> { "Lanczos", "Bicubic", "Nearest", "AI (EDSR x2)" }, Devices = new List<string> { "CPU", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } },
-            ["Русский"] = new Localization { Title = "Видео Апскейлер", NoFile = "Файл не выбран", UploadVideo = "Выбрать видео", UpscaleFactor = "Коэффициент", Interpolation = "Метод:", Device = "Устройство:", StartButton = "Начать", CancelButton = "Отмена", Processing = "Обработка...", Success = "Готово!", Cancelled = "Отменено", RemainingTime = "Осталось", InterpMethods = new List<string> { "Lanczos", "Бикубическая", "Сосед", "ИИ (EDSR x2)" }, Devices = new List<string> { "ЦПУ (CPU)", "NVIDIA (CUDA)", "AMD/Intel (OpenCL)" } }
-        };
     }
-
-    public class Localization { public string Title { get; set; } public string NoFile { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string Device { get; set; } public string StartButton { get; set; } public string CancelButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public string Cancelled { get; set; } public string RemainingTime { get; set; } public List<string> InterpMethods { get; set; } public List<string> Devices { get; set; } }
 }

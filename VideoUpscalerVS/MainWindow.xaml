@@ -5,54 +5,60 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VideoUpscalerVS"
         mc:Ignorable="d"
-        Title="Video Upscaler" Height="500" Width="600" WindowStartupLocation="CenterScreen">
+        Title="Video Upscaler" Height="500" Width="600" WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WindowBackground}">
     <Grid Name="MainGrid">
         <StackPanel Margin="20">
             <DockPanel Margin="0,0,0,20">
-                <TextBlock Name="TitleLabel" Text="Video Upscaler" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Name="TitleLabel" Text="{DynamicResource Title}" Foreground="{DynamicResource PrimaryText}" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="55" Height="35" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18">
+                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="55" Height="35" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18"
+                              Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}">
                         <ComboBoxItem Content="🇺🇸"/>
                         <ComboBoxItem Content="🇷🇺"/>
                     </ComboBox>
-                    <Button Name="ThemeBtn" Content="🌓" Click="ThemeBtn_Click" Width="40" Height="35" Margin="5,0" FontSize="18"/>
+                    <Button Name="ThemeBtn" Content="🌓" Click="ThemeBtn_Click" Width="40" Height="35" Margin="5,0" FontSize="18"
+                            Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}"/>
                 </StackPanel>
             </DockPanel>
 
-            <Button Name="SelectFileBtn" Content="Select Video File" Click="SelectFileBtn_Click" Margin="0,0,0,10" Height="35"/>
-            <TextBlock Name="FilePathLabel" Text="No file selected" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
+            <Button Name="SelectFileBtn" Content="{DynamicResource UploadVideo}" Click="SelectFileBtn_Click" Margin="0,0,0,10" Height="35"
+                    Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}"/>
+            <TextBlock Name="FilePathLabel" Text="{DynamicResource NoFile}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
 
             <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="FactorLabel" Text="Upscale Factor (x2.0):" VerticalAlignment="Center" Width="150"/>
+                <TextBlock Name="FactorLabel" Text="{DynamicResource UpscaleFactor}" Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center" Width="150"/>
                 <Slider Name="FactorSlider" Minimum="1.5" Maximum="4.0" Value="2.0" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="FactorSlider_ValueChanged"/>
             </DockPanel>
 
             <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="MethodLabel" Text="Interpolation:" VerticalAlignment="Center" Width="120"/>
-                <ComboBox Name="MethodCombo" SelectedIndex="0" Height="30"/>
+                <TextBlock Name="MethodLabel" Text="{DynamicResource Interpolation}" Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center" Width="120"/>
+                <ComboBox Name="MethodCombo" SelectedIndex="0" Height="30" Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}">
+                </ComboBox>
             </DockPanel>
 
             <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="DeviceLabel" Text="Device:" VerticalAlignment="Center" Width="150"/>
-                <ComboBox Name="DeviceCombo" SelectedIndex="0" Height="30"/>
+                <TextBlock Name="DeviceLabel" Text="{DynamicResource Device}" Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center" Width="150"/>
+                <ComboBox Name="DeviceCombo" SelectedIndex="0" Height="30" Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}">
+                </ComboBox>
             </DockPanel>
 
-            <Button Name="StartBtn" Content="Start Upscaling" Click="StartBtn_Click" Height="45" Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="14"/>
+            <Button Name="StartBtn" Content="{DynamicResource StartButton}" Click="StartBtn_Click" Height="45" Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="14"/>
 
             <Grid Name="ProgressGrid" Visibility="Collapsed" Margin="0,15,0,0">
                 <StackPanel>
                     <Grid>
                         <ProgressBar Name="ProgBar" Height="30" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
-                        <TextBlock Name="PercLabel" Text="0%" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                        <TextBlock Name="PercLabel" Text="0%" Foreground="{DynamicResource PrimaryText}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
                     </Grid>
                     <DockPanel Margin="0,5,0,0">
-                        <Button Name="CancelBtn" Content="Cancel" Click="CancelBtn_Click" Width="90" Height="25" HorizontalAlignment="Left" Background="#D32F2F" Foreground="White"/>
-                        <TextBlock Name="ETALabel" Text="Time remaining: ..." HorizontalAlignment="Right" FontSize="12" VerticalAlignment="Center"/>
+                        <Button Name="CancelBtn" Content="{DynamicResource CancelButton}" Click="CancelBtn_Click" Width="90" Height="25" HorizontalAlignment="Left" Background="#D32F2F" Foreground="White"/>
+                        <TextBlock Name="ETALabel" Text="..." Foreground="{DynamicResource PrimaryText}" HorizontalAlignment="Right" FontSize="12" VerticalAlignment="Center"/>
                     </DockPanel>
                 </StackPanel>
             </Grid>
 
-            <TextBlock Name="StatusLabel" Text="" Margin="0,10,0,0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+            <TextBlock Name="StatusLabel" Text="" Foreground="{DynamicResource PrimaryText}" Margin="0,10,0,0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
         </StackPanel>
     </Grid>
 </Window>

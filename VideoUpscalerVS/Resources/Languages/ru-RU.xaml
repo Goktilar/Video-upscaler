@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+    <system:String x:Key="Title">Видео Апскейлер</system:String>
+    <system:String x:Key="NoFile">Файл не выбран</system:String>
+    <system:String x:Key="UploadVideo">Выбрать видео</system:String>
+    <system:String x:Key="UpscaleFactor">Коэффициент</system:String>
+    <system:String x:Key="Interpolation">Метод:</system:String>
+    <system:String x:Key="Device">Устройство:</system:String>
+    <system:String x:Key="StartButton">Начать</system:String>
+    <system:String x:Key="CancelButton">Отмена</system:String>
+    <system:String x:Key="Processing">Обработка...</system:String>
+    <system:String x:Key="Success">Готово!</system:String>
+    <system:String x:Key="Cancelled">Отменено</system:String>
+    <system:String x:Key="RemainingTime">Осталось</system:String>
+</ResourceDictionary>
