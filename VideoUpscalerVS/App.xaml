@@ -3,19 +3,83 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <!-- Modern Dark/Light Styles -->
-        <Style TargetType="Button">
+        <!-- Modern "CSS-style" Global Styles -->
+
+        <Style TargetType="Control" x:Key="BaseControlStyle">
+            <Setter Property="FontFamily" Value="Segoe UI, Roboto, Helvetica, Arial, sans-serif"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style TargetType="Button" BasedOn="{StaticResource BaseControlStyle}">
+            <Setter Property="Background" Value="{DynamicResource ButtonBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ButtonHoverBackground}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox" BasedOn="{StaticResource BaseControlStyle}">
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="5"/>
             <Setter Property="Margin" Value="2"/>
         </Style>
 
-        <Style TargetType="ComboBox">
-            <Setter Property="Padding" Value="5"/>
-            <Setter Property="Margin" Value="2"/>
+        <Style TargetType="Slider">
+            <Setter Property="Margin" Value="5,0"/>
         </Style>
 
         <Style TargetType="ProgressBar">
-            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentColor}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid x:Name="TemplateRoot">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="10"/>
+                            <Rectangle x:Name="PART_Indicator"
+                                     HorizontalAlignment="Left">
+                                <Rectangle.Fill>
+                                    <SolidColorBrush Color="{Binding Source={DynamicResource AccentColor}, Path=Color}"/>
+                                </Rectangle.Fill>
+                            </Rectangle>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+
     </Application.Resources>
 </Application>

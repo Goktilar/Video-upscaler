@@ -5,60 +5,71 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VideoUpscalerVS"
         mc:Ignorable="d"
-        Title="Video Upscaler" Height="500" Width="600" WindowStartupLocation="CenterScreen"
+        Title="Video Upscaler" Height="520" Width="600" WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackground}">
     <Grid Name="MainGrid">
-        <StackPanel Margin="20">
-            <DockPanel Margin="0,0,0,20">
-                <TextBlock Name="TitleLabel" Text="{DynamicResource Title}" Foreground="{DynamicResource PrimaryText}" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Margin="30">
+            <!-- Header Section -->
+            <DockPanel Margin="0,0,0,30">
+                <TextBlock Name="TitleLabel" Text="{DynamicResource Title}" Foreground="{DynamicResource PrimaryText}" FontSize="28" FontWeight="Light" VerticalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="55" Height="35" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18"
-                              Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}">
-                        <ComboBoxItem Content="🇺🇸"/>
-                        <ComboBoxItem Content="🇷🇺"/>
-                    </ComboBox>
-                    <Button Name="ThemeBtn" Content="🌓" Click="ThemeBtn_Click" Width="40" Height="35" Margin="5,0" FontSize="18"
-                            Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}"/>
+                    <ComboBox Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" Width="60" Height="35" Margin="5,0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="18"/>
+                    <Button Name="ThemeBtn" Content="🌓" Click="ThemeBtn_Click" Width="40" Height="35" Margin="5,0" FontSize="18"/>
                 </StackPanel>
             </DockPanel>
 
-            <Button Name="SelectFileBtn" Content="{DynamicResource UploadVideo}" Click="SelectFileBtn_Click" Margin="0,0,0,10" Height="35"
-                    Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}"/>
-            <TextBlock Name="FilePathLabel" Text="{DynamicResource NoFile}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
+            <!-- File Selection -->
+            <Button Name="SelectFileBtn" Content="{DynamicResource UploadVideo}" Click="SelectFileBtn_Click" Margin="0,0,0,10" Height="40" FontSize="14"/>
+            <TextBlock Name="FilePathLabel" Text="{DynamicResource NoFile}" Foreground="{DynamicResource SecondaryText}" Margin="5,0,0,20" TextTrimming="CharacterEllipsis" FontSize="11"/>
 
-            <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="FactorLabel" Text="{DynamicResource UpscaleFactor}" Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center" Width="150"/>
-                <Slider Name="FactorSlider" Minimum="1.5" Maximum="4.0" Value="2.0" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="FactorSlider_ValueChanged"/>
-            </DockPanel>
+            <!-- Settings Grid -->
+            <Grid Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="MethodLabel" Text="{DynamicResource Interpolation}" Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center" Width="120"/>
-                <ComboBox Name="MethodCombo" SelectedIndex="0" Height="30" Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}">
-                </ComboBox>
-            </DockPanel>
+                <!-- Factor -->
+                <StackPanel Grid.Column="0" Margin="0,0,10,15">
+                    <TextBlock Name="FactorLabel" Text="{DynamicResource UpscaleFactor}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                    <Slider Name="FactorSlider" Minimum="1.5" Maximum="4.0" Value="2.0" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="FactorSlider_ValueChanged"/>
+                </StackPanel>
 
-            <DockPanel Margin="0,0,0,10">
-                <TextBlock Name="DeviceLabel" Text="{DynamicResource Device}" Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center" Width="150"/>
-                <ComboBox Name="DeviceCombo" SelectedIndex="0" Height="30" Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource PrimaryText}">
-                </ComboBox>
-            </DockPanel>
+                <!-- Method -->
+                <StackPanel Grid.Column="1" Margin="10,0,0,15">
+                    <TextBlock Name="MethodLabel" Text="{DynamicResource Interpolation}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                    <ComboBox Name="MethodCombo" SelectedIndex="0" Height="32"/>
+                </StackPanel>
 
-            <Button Name="StartBtn" Content="{DynamicResource StartButton}" Click="StartBtn_Click" Height="45" Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="14"/>
-
-            <Grid Name="ProgressGrid" Visibility="Collapsed" Margin="0,15,0,0">
-                <StackPanel>
-                    <Grid>
-                        <ProgressBar Name="ProgBar" Height="30" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
-                        <TextBlock Name="PercLabel" Text="0%" Foreground="{DynamicResource PrimaryText}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
-                    </Grid>
-                    <DockPanel Margin="0,5,0,0">
-                        <Button Name="CancelBtn" Content="{DynamicResource CancelButton}" Click="CancelBtn_Click" Width="90" Height="25" HorizontalAlignment="Left" Background="#D32F2F" Foreground="White"/>
-                        <TextBlock Name="ETALabel" Text="..." Foreground="{DynamicResource PrimaryText}" HorizontalAlignment="Right" FontSize="12" VerticalAlignment="Center"/>
-                    </DockPanel>
+                <!-- Device -->
+                <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Margin="0,5,0,0">
+                    <TextBlock Name="DeviceLabel" Text="{DynamicResource Device}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                    <ComboBox Name="DeviceCombo" SelectedIndex="0" Height="32"/>
                 </StackPanel>
             </Grid>
 
-            <TextBlock Name="StatusLabel" Text="" Foreground="{DynamicResource PrimaryText}" Margin="0,10,0,0" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+            <!-- Action Button -->
+            <Button Name="StartBtn" Content="{DynamicResource StartButton}" Click="StartBtn_Click" Height="50" Background="{DynamicResource AccentColor}" Foreground="White" FontWeight="SemiBold" FontSize="16" Margin="0,10,0,0"/>
+
+            <!-- Progress Section -->
+            <Grid Name="ProgressGrid" Visibility="Collapsed" Margin="0,20,0,0">
+                <StackPanel>
+                    <Grid>
+                        <ProgressBar Name="ProgBar" Height="12" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
+                    </Grid>
+                    <DockPanel Margin="2,8,2,0">
+                        <TextBlock Name="PercLabel" Text="0%" Foreground="{DynamicResource PrimaryText}" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Name="ETALabel" Text="..." Foreground="{DynamicResource SecondaryText}" HorizontalAlignment="Right" FontSize="12" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <Button Name="CancelBtn" Content="{DynamicResource CancelButton}" Click="CancelBtn_Click" Width="100" Height="30" Margin="0,15,0,0" HorizontalAlignment="Center" Background="#D32F2F" Foreground="White" BorderThickness="0"/>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Name="StatusLabel" Text="" Foreground="{DynamicResource AccentColor}" Margin="0,15,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="13"/>
         </StackPanel>
     </Grid>
 </Window>

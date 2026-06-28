@@ -32,11 +32,8 @@ namespace VideoUpscalerVS
         public MainWindow()
         {
             InitializeComponent();
-
-            // Initial language and theme setup
             DetectSystemDefaults();
 
-            // Register for system theme changes
             SystemEvents.UserPreferenceChanged += (s, e) => {
                 if (currentThemeMode == ThemeMode.System) ApplyTheme();
             };
@@ -56,7 +53,6 @@ namespace VideoUpscalerVS
                 LangCombo.SelectedIndex = 0;
             }
 
-            // Set initial language and theme
             SwitchLanguage(currentLangKey == "Русский" ? "ru-RU" : "en-US");
             ApplyTheme();
         }
@@ -64,8 +60,6 @@ namespace VideoUpscalerVS
         private void SwitchLanguage(string cultureCode)
         {
             var dict = new ResourceDictionary { Source = new Uri($"Resources/Languages/{cultureCode}.xaml", UriKind.Relative) };
-
-            // Remove old language dictionary if any
             for (int i = 0; i < Resources.MergedDictionaries.Count; i++)
             {
                 if (Resources.MergedDictionaries[i].Source.OriginalString.Contains("Languages/"))
@@ -75,7 +69,6 @@ namespace VideoUpscalerVS
                 }
             }
             Resources.MergedDictionaries.Add(dict);
-
             UpdateInterpolationAndDevices();
             UpdateLabels();
         }
@@ -135,7 +128,6 @@ namespace VideoUpscalerVS
             };
 
             ThemeBtn.Content = currentThemeMode switch { ThemeMode.Dark => "🌙", ThemeMode.Light => "☀️", _ => "🌓" };
-
             var themeName = useDark ? "Dark" : "Light";
             var dict = new ResourceDictionary { Source = new Uri($"Resources/Themes/{themeName}.xaml", UriKind.Relative) };
 
@@ -171,7 +163,7 @@ namespace VideoUpscalerVS
             if (openFileDialog.ShowDialog() == true)
             {
                 selectedPath = openFileDialog.FileName;
-                FilePathLabel.Text = selectedPath;
+                UpdateLabels();
             }
         }
 
@@ -209,6 +201,7 @@ namespace VideoUpscalerVS
             try
             {
                 await Task.Run(() => UpscaleLogic(selectedPath, tempOutputPath, factor, methodIdx, deviceIdx, progress, cts.Token), cts.Token);
+                StatusLabel.Text = "Muxing audio...";
                 await Task.Run(() => MuxAudio(selectedPath, tempOutputPath, finalOutputPath, cts.Token), cts.Token);
                 StatusLabel.Text = (string)FindResource("Success");
                 MessageBox.Show((string)FindResource("Success") + "\nSaved to: " + finalOutputPath);
