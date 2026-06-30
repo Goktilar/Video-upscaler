@@ -8,6 +8,8 @@
     <system:String x:Key="Interpolation">Метод:</system:String>
     <system:String x:Key="Device">Устройство:</system:String>
     <system:String x:Key="StartButton">Начать</system:String>
+    <system:String x:Key="PreviewButton">Предпросмотр (15с)</system:String>
+    <system:String x:Key="PreviewStartTime">Начало отрезка:</system:String>
     <system:String x:Key="CancelButton">Отмена</system:String>
     <system:String x:Key="Processing">Обработка...</system:String>
     <system:String x:Key="Success">Готово!</system:String>

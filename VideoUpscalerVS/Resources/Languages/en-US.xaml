@@ -8,6 +8,8 @@
     <system:String x:Key="Interpolation">Interpolation:</system:String>
     <system:String x:Key="Device">Device:</system:String>
     <system:String x:Key="StartButton">Start Upscaling</system:String>
+    <system:String x:Key="PreviewButton">Preview (15s)</system:String>
+    <system:String x:Key="PreviewStartTime">Preview Start Time:</system:String>
     <system:String x:Key="CancelButton">Cancel</system:String>
     <system:String x:Key="Processing">Processing...</system:String>
     <system:String x:Key="Success">Done!</system:String>
