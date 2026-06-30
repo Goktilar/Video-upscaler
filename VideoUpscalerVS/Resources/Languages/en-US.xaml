@@ -4,6 +4,8 @@
     <system:String x:Key="Title">Video Upscaler</system:String>
     <system:String x:Key="NoFile">No file selected</system:String>
     <system:String x:Key="UploadVideo">Select Video File</system:String>
+    <system:String x:Key="TargetQuality">Target Quality:</system:String>
+    <system:String x:Key="OriginalQuality">Original Quality</system:String>
     <system:String x:Key="UpscaleFactor">Upscale Factor</system:String>
     <system:String x:Key="Interpolation">Interpolation:</system:String>
     <system:String x:Key="Device">Device:</system:String>

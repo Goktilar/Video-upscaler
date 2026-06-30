@@ -4,6 +4,8 @@
     <system:String x:Key="Title">Видео Апскейлер</system:String>
     <system:String x:Key="NoFile">Файл не выбран</system:String>
     <system:String x:Key="UploadVideo">Выбрать видео</system:String>
+    <system:String x:Key="TargetQuality">Качество результата:</system:String>
+    <system:String x:Key="OriginalQuality">Исходное качество</system:String>
     <system:String x:Key="UpscaleFactor">Коэффициент</system:String>
     <system:String x:Key="Interpolation">Метод:</system:String>
     <system:String x:Key="Device">Устройство:</system:String>

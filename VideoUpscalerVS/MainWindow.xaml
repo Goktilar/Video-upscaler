@@ -20,7 +20,8 @@
 
             <!-- File Selection -->
             <Button Name="SelectFileBtn" Content="{DynamicResource UploadVideo}" Click="SelectFileBtn_Click" Margin="0,0,0,5" Height="40" FontSize="14"/>
-            <TextBlock Name="FilePathLabel" Text="{DynamicResource NoFile}" Foreground="{DynamicResource SecondaryText}" Margin="5,0,0,15" TextTrimming="CharacterEllipsis" FontSize="11"/>
+            <TextBlock Name="FilePathLabel" Text="{DynamicResource NoFile}" Foreground="{DynamicResource SecondaryText}" Margin="5,0,0,5" TextTrimming="CharacterEllipsis" FontSize="11"/>
+            <TextBlock Name="OriginalInfoLabel" Text="" Foreground="{DynamicResource AccentColor}" Margin="5,0,0,15" FontSize="11" FontWeight="SemiBold"/>
 
             <!-- Settings Grid -->
             <Grid Margin="0,0,0,15">
@@ -34,21 +35,26 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
+                <!-- Quality Preset -->
                 <StackPanel Grid.Column="0" Margin="0,0,10,15">
-                    <TextBlock Name="FactorLabel" Text="{DynamicResource UpscaleFactor}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
-                    <Slider Name="FactorSlider" Minimum="1.5" Maximum="4.0" Value="2.0" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="FactorSlider_ValueChanged"/>
+                    <TextBlock Name="QualityLabel" Text="{DynamicResource TargetQuality}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                    <ComboBox Name="QualityCombo" SelectedIndex="0" Height="32">
+                    </ComboBox>
                 </StackPanel>
 
+                <!-- Method -->
                 <StackPanel Grid.Column="1" Margin="10,0,0,15">
                     <TextBlock Name="MethodLabel" Text="{DynamicResource Interpolation}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
                     <ComboBox Name="MethodCombo" SelectedIndex="0" Height="32"/>
                 </StackPanel>
 
+                <!-- Device -->
                 <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,15">
                     <TextBlock Name="DeviceLabel" Text="{DynamicResource Device}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
                     <ComboBox Name="DeviceCombo" SelectedIndex="0" Height="32"/>
                 </StackPanel>
 
+                <!-- Preview Time -->
                 <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,0,0,15">
                     <TextBlock Name="PreviewStartLabel" Text="{DynamicResource PreviewStartTime}" Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,5" FontWeight="SemiBold"/>
                     <DockPanel>

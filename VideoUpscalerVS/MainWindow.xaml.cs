@@ -11,6 +11,7 @@ using Microsoft.Win32;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using System.Globalization;
+using System.Linq;
 
 namespace VideoUpscalerVS
 {
@@ -22,6 +23,13 @@ namespace VideoUpscalerVS
 
     public enum ThemeMode { System, Light, Dark }
 
+    public class QualityPreset
+    {
+        public string Name { get; set; }
+        public int Height { get; set; }
+        public double Scale { get; set; }
+    }
+
     public partial class MainWindow : System.Windows.Window
     {
         private string selectedPath = "";
@@ -29,6 +37,8 @@ namespace VideoUpscalerVS
         private ThemeMode currentThemeMode = ThemeMode.System;
         private string currentLangKey = "English";
         private double videoDuration = 0;
+        private int originalWidth = 0;
+        private int originalHeight = 0;
 
         public MainWindow()
         {
@@ -66,7 +76,6 @@ namespace VideoUpscalerVS
         {
             if (string.IsNullOrEmpty(selectedPath)) FilePathLabel.Text = (string)FindResource("NoFile");
             else FilePathLabel.Text = selectedPath;
-            FactorLabel.Text = $"{(string)FindResource("UpscaleFactor")} (x{FactorSlider.Value:F1}):";
         }
 
         private void UpdateInterpolationAndDevices()
@@ -86,11 +95,36 @@ namespace VideoUpscalerVS
             DeviceCombo.SelectedIndex = Math.Max(0, prevD);
         }
 
+        private void UpdateQualityPresets()
+        {
+            if (originalHeight <= 0) return;
+
+            var presets = new List<QualityPreset>
+            {
+                new QualityPreset { Name = "720p (HD)", Height = 720 },
+                new QualityPreset { Name = "1080p (Full HD)", Height = 1080 },
+                new QualityPreset { Name = "1440p (2K)", Height = 1440 },
+                new QualityPreset { Name = "2160p (4K)", Height = 2160 }
+            };
+
+            int prevIndex = QualityCombo.SelectedIndex;
+            QualityCombo.Items.Clear();
+            double aspect = (double)originalWidth / originalHeight;
+
+            foreach (var p in presets)
+            {
+                int targetWidth = (int)(p.Height * aspect);
+                QualityCombo.Items.Add($"{p.Name} - {targetWidth}x{p.Height}");
+            }
+            QualityCombo.SelectedIndex = prevIndex >= 0 ? prevIndex : 1;
+        }
+
         private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (LangCombo == null) return;
             currentLangKey = (LangCombo.SelectedIndex == 1) ? "Русский" : "English";
             SwitchLanguage(currentLangKey == "Русский" ? "ru-RU" : "en-US");
+            if (!string.IsNullOrEmpty(selectedPath)) UpdateQualityPresets();
         }
 
         private void ThemeBtn_Click(object sender, RoutedEventArgs e)
@@ -128,13 +162,15 @@ namespace VideoUpscalerVS
                 using var cap = new VideoCapture(selectedPath);
                 if (cap.IsOpened())
                 {
+                    originalWidth = cap.FrameWidth;
+                    originalHeight = cap.FrameHeight;
                     videoDuration = cap.FrameCount / cap.Fps;
+                    OriginalInfoLabel.Text = $"{(string)FindResource("OriginalQuality")}: {originalWidth}x{originalHeight} ({videoDuration:F1}s)";
                     PreviewSlider.Maximum = Math.Max(0, videoDuration - 1);
+                    UpdateQualityPresets();
                 }
             }
         }
-
-        private void FactorSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { if (FactorLabel != null) UpdateLabels(); }
 
         private void PreviewSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -150,14 +186,17 @@ namespace VideoUpscalerVS
 
         private async Task RunUpscale(bool isPreview)
         {
-            if (string.IsNullOrEmpty(selectedPath)) return;
+            if (string.IsNullOrEmpty(selectedPath) || QualityCombo.SelectedIndex < 0) return;
+
+            var presetHeights = new[] { 720, 1080, 1440, 2160 };
+            int targetHeight = presetHeights[QualityCombo.SelectedIndex];
+            double factor = (double)targetHeight / originalHeight;
 
             string baseName = Path.GetFileNameWithoutExtension(selectedPath);
             string dir = isPreview ? Path.GetTempPath() : Path.GetDirectoryName(selectedPath);
             string tempSilent = Path.Combine(Path.GetTempPath(), "upscale_temp_" + Guid.NewGuid().ToString("N") + ".mp4");
             string finalOutput = Path.Combine(dir, baseName + (isPreview ? "_preview.mp4" : "_upscaled.mp4"));
 
-            double factor = FactorSlider.Value;
             int methodIdx = MethodCombo.SelectedIndex;
             int deviceIdx = DeviceCombo.SelectedIndex;
             double startTime = PreviewSlider.Value;
@@ -174,17 +213,8 @@ namespace VideoUpscalerVS
             try
             {
                 await Task.Run(() => UpscaleLogic(selectedPath, tempSilent, factor, methodIdx, deviceIdx, progress, cts.Token, isPreview, startTime), cts.Token);
-
-                if (isPreview)
-                {
-                    StatusLabel.Text = "Creating comparison...";
-                    await Task.Run(() => CreateComparison(selectedPath, tempSilent, finalOutput, startTime, cts.Token), cts.Token);
-                }
-                else
-                {
-                    StatusLabel.Text = "Muxing audio...";
-                    await Task.Run(() => MuxAudio(selectedPath, tempSilent, finalOutput, cts.Token), cts.Token);
-                }
+                if (isPreview) await Task.Run(() => CreateComparison(selectedPath, tempSilent, finalOutput, startTime, targetHeight, cts.Token), cts.Token);
+                else await Task.Run(() => MuxAudio(selectedPath, tempSilent, finalOutput, cts.Token), cts.Token);
 
                 StatusLabel.Text = (string)FindResource("Success");
                 if (isPreview) Process.Start(new ProcessStartInfo(finalOutput) { UseShellExecute = true });
@@ -208,7 +238,7 @@ namespace VideoUpscalerVS
 
         private void SetUIEnabled(bool enabled)
         {
-            StartBtn.IsEnabled = PreviewBtn.IsEnabled = SelectFileBtn.IsEnabled = FactorSlider.IsEnabled = MethodCombo.IsEnabled = DeviceCombo.IsEnabled = LangCombo.IsEnabled = ThemeBtn.IsEnabled = PreviewSlider.IsEnabled = enabled;
+            StartBtn.IsEnabled = PreviewBtn.IsEnabled = SelectFileBtn.IsEnabled = QualityCombo.IsEnabled = MethodCombo.IsEnabled = DeviceCombo.IsEnabled = LangCombo.IsEnabled = ThemeBtn.IsEnabled = PreviewSlider.IsEnabled = enabled;
         }
 
         private void CancelBtn_Click(object sender, RoutedEventArgs e) => cts?.Cancel();
@@ -258,7 +288,7 @@ namespace VideoUpscalerVS
                     using var merged = new Mat();
                     Cv2.Merge(new[] { p0, p1, p2 }, merged);
                     merged.ConvertTo(upscaled, MatType.CV_8UC3);
-                    if (factor != 2.0) Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
+                    if (Math.Abs(factor - 2.0) > 0.01) Cv2.Resize(upscaled, upscaled, new OpenCvSharp.Size(newWidth, newHeight), 0, 0, InterpolationFlags.Lanczos4);
                 }
                 else
                 {
@@ -277,10 +307,11 @@ namespace VideoUpscalerVS
             net?.Dispose();
         }
 
-        private void CreateComparison(string original, string upscaled, string output, double startTime, CancellationToken token)
+        private void CreateComparison(string original, string upscaled, string output, double startTime, int targetHeight, CancellationToken token)
         {
-            // Use FFmpeg to: 1. Extract 15s from original, 2. Resize original to match upscaled height, 3. Stack horizontally
-            string args = $"-ss {startTime} -t 15 -i \"{original}\" -i \"{upscaled}\" -filter_complex \"[0:v]scale=-1:oh,setsar=1[v0];[1:v]setsar=1[v1];[v0][v1]hstack=inputs=2\" -c:v libx264 -preset ultrafast -y \"{output}\"";
+            // [0:v] refers to original, [1:v] to upscaled.
+            // Scale original to match upscaled height (targetHeight).
+            string args = $"-ss {startTime} -t 15 -i \"{original}\" -i \"{upscaled}\" -filter_complex \"[0:v]scale=-1:{targetHeight},setsar=1[v0];[1:v]setsar=1[v1];[v0][v1]hstack=inputs=2\" -c:v libx264 -preset ultrafast -y \"{output}\"";
             RunFFmpeg(args, token);
         }
 
@@ -297,6 +328,4 @@ namespace VideoUpscalerVS
             if (p != null) { using (token.Register(() => { try { p.Kill(); } catch { } })) p.WaitForExit(); if (token.IsCancellationRequested) token.ThrowIfCancellationRequested(); }
         }
     }
-
-    public class Localization { public string Title { get; set; } public string NoFile { get; set; } public string UploadVideo { get; set; } public string UpscaleFactor { get; set; } public string Interpolation { get; set; } public string Device { get; set; } public string StartButton { get; set; } public string PreviewButton { get; set; } public string PreviewStartTime { get; set; } public string CancelButton { get; set; } public string Processing { get; set; } public string Success { get; set; } public string Cancelled { get; set; } public string RemainingTime { get; set; } public List<string> InterpMethods { get; set; } public List<string> Devices { get; set; } }
 }
